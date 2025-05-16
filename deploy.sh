@@ -18,8 +18,56 @@ TOMCAT_HOME="/opt/homebrew/opt/tomcat@9/libexec"
 APP_NAME="course-selection"
 DEFAULT_HTTP_PORT=8081
 DEFAULT_SHUTDOWN_PORT=8006
+HTTP_PORT_RANGE_START=8081
+HTTP_PORT_RANGE_END=8100
+SHUTDOWN_PORT_RANGE_START=8001
+SHUTDOWN_PORT_RANGE_END=8050
 
-# 查找可用端口函数
+# 改进：更详细地显示被占用端口的情况
+show_port_usage() {
+    local PORT=$1
+    local PIDS=$(lsof -ti tcp:$PORT)
+    if [ -n "$PIDS" ]; then
+        yellow "端口 $PORT 被以下进程占用:"
+        for PID in $PIDS; do
+            local CMD=$(ps -p $PID -o comm=)
+            local USER=$(ps -p $PID -o user=)
+            yellow "  PID: $PID, 命令: $CMD, 用户: $USER"
+        done
+    else
+        green "端口 $PORT 当前未被占用"
+    fi
+}
+
+# 改进：查找可用端口对 (HTTP端口和Shutdown端口)
+find_available_port_pair() {
+    for ((http_port=HTTP_PORT_RANGE_START; http_port<=HTTP_PORT_RANGE_END; http_port++)); do
+        if ! lsof -i tcp:$http_port > /dev/null; then
+            # 默认的shutdown端口偏移
+            local shutdown_port=$((http_port - 75))
+            
+            # 如果默认偏移的shutdown端口可用，直接使用
+            if ! lsof -i tcp:$shutdown_port > /dev/null; then
+                echo "$http_port:$shutdown_port"
+                return 0
+            fi
+            
+            # 否则查找一个可用的shutdown端口
+            for ((s_port=SHUTDOWN_PORT_RANGE_START; s_port<=SHUTDOWN_PORT_RANGE_END; s_port++)); do
+                if ! lsof -i tcp:$s_port > /dev/null; then
+                    echo "$http_port:$s_port"
+                    return 0
+                fi
+            done
+        fi
+    done
+    
+    # 如果找不到可用的端口对，返回空
+    echo ""
+    return 1
+}
+
+# 改进：查找可用端口函数 (单一端口)
 find_available_port() {
     local START_PORT=$1
     local END_PORT=$2
@@ -32,65 +80,150 @@ find_available_port() {
     return 1
 }
 
-# 精准释放端口函数
-release_port() {
+# 改进：更彻底地释放指定端口，最多尝试3次
+force_release_port() {
     local PORT=$1
-    PIDS=$(lsof -ti tcp:$PORT)
-    if [ -n "$PIDS" ]; then
-        yellow "检测到端口 $PORT 被占用，尝试释放..."
-        echo "占用进程: $PIDS"
-        kill -9 $PIDS
-        sleep 1
-        if ! lsof -i tcp:$PORT > /dev/null; then
+    local MAX_ATTEMPTS=3
+    local ATTEMPT=1
+    
+    yellow "尝试释放端口 $PORT..."
+    show_port_usage $PORT
+    
+    while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+        PIDS=$(lsof -ti tcp:$PORT)
+        if [ -z "$PIDS" ]; then
             green "端口 $PORT 已成功释放。"
-        else
-            yellow "端口 $PORT 仍然被占用，将尝试使用其他端口..."
-        fi
-    else
-        green "端口 $PORT 未被占用。"
-    fi
-}
-
-# 广泛释放所有Tomcat相关端口（查找java进程）
-kill_tomcat_ports() {
-    yellow "尝试关闭所有Tomcat相关进程..."
-    PIDS=$(ps aux | grep '[j]ava' | grep -i 'tomcat' | awk '{print $2}')
-    if [ -n "$PIDS" ]; then
-        kill -9 $PIDS
-        green "已终止以下Tomcat进程: $PIDS"
-    else
-        green "未检测到Tomcat相关的java进程。"
-    fi
-}
-
-# 设置Tomcat端口的函数
-set_tomcat_port() {
-    local NEW_PORT=$1
-    local SERVER_XML="$TOMCAT_HOME/conf/server.xml"
-    local SHUTDOWN_PORT=$((NEW_PORT - 75))  # 通常shutdown端口比HTTP端口小75
-    
-    # 备份原始配置文件
-    cp "$SERVER_XML" "$SERVER_XML.bak"
-    
-    yellow "正在修改Tomcat配置..."
-    # MacOS适用的sed命令
-    sed -i '' "s/Connector port=\"[0-9]\+\" protocol=\"HTTP\/1.1\"/Connector port=\"$NEW_PORT\" protocol=\"HTTP\/1.1\"/" "$SERVER_XML"
-    sed -i '' "s/Server port=\"[0-9]\+\" shutdown/Server port=\"$SHUTDOWN_PORT\" shutdown/" "$SERVER_XML"
-    
-    green "已将Tomcat HTTP端口修改为 $NEW_PORT，shutdown端口修改为 $SHUTDOWN_PORT"
-}
-
-# 检测Tomcat是否已成功启动（访问当前端口）
-check_tomcat_running() {
-    local PORT=${APP_PORT:-8080}
-    local RETRIES=10
-    local SLEEP_TIME=1
-    for ((i=1; i<=RETRIES; i++)); do
-        if curl -s http://localhost:$PORT > /dev/null; then
             return 0
         fi
-        sleep $SLEEP_TIME
+        
+        yellow "尝试 $ATTEMPT/$MAX_ATTEMPTS: 强制终止占用端口 $PORT 的进程 (PID: $PIDS)"
+        kill -9 $PIDS 2>/dev/null
+        sleep 2
+        
+        if ! lsof -i tcp:$PORT > /dev/null; then
+            green "端口 $PORT 已成功释放。"
+            return 0
+        fi
+        
+        ATTEMPT=$((ATTEMPT+1))
     done
+    
+    yellow "警告: 尝试 $MAX_ATTEMPTS 次后，仍无法释放端口 $PORT。"
+    return 1
+}
+
+# 改进：清理所有Tomcat和Java相关进程
+kill_all_tomcat_processes() {
+    yellow "尝试清理所有Tomcat和相关Java进程..."
+    
+    # 先尝试使用shutdown脚本正常关闭
+    if [ -f "$TOMCAT_HOME/bin/shutdown.sh" ]; then
+        yellow "尝试使用shutdown.sh优雅关闭Tomcat..."
+        $TOMCAT_HOME/bin/shutdown.sh >/dev/null 2>&1
+        sleep 3
+    fi
+    
+    # 杀死所有明确标记为tomcat的Java进程
+    local TOMCAT_PIDS=$(ps aux | grep '[j]ava' | grep -i 'tomcat' | awk '{print $2}')
+    if [ -n "$TOMCAT_PIDS" ]; then
+        yellow "发现Tomcat进程，正在终止: $TOMCAT_PIDS"
+        kill -9 $TOMCAT_PIDS 2>/dev/null
+        sleep 1
+    fi
+    
+    # 杀死所有监听常见Tomcat端口的进程
+    local PORT_PIDS=$(lsof -ti tcp:8005,tcp:8006,tcp:8007,tcp:8008,tcp:8009,tcp:8080,tcp:8081,tcp:8082,tcp:8083,tcp:8084,tcp:8085)
+    if [ -n "$PORT_PIDS" ]; then
+        yellow "发现监听Tomcat常用端口的进程，正在终止: $PORT_PIDS"
+        kill -9 $PORT_PIDS 2>/dev/null
+        sleep 1
+    fi
+    
+    # 验证是否还有tomcat进程
+    if ps aux | grep '[j]ava' | grep -i 'tomcat' > /dev/null; then
+        red "警告: 仍有Tomcat进程在运行。"
+        ps aux | grep '[j]ava' | grep -i 'tomcat'
+    else
+        green "所有Tomcat进程已成功终止。"
+    fi
+    
+    # 验证常用端口是否已释放
+    local BLOCKED_PORTS=""
+    for port in 8005 8006 8007 8008 8009 8080 8081 8082 8083 8084 8085; do
+        if lsof -i tcp:$port > /dev/null; then
+            BLOCKED_PORTS="$BLOCKED_PORTS $port"
+        fi
+    done
+    
+    if [ -n "$BLOCKED_PORTS" ]; then
+        yellow "以下Tomcat常用端口仍被占用:$BLOCKED_PORTS"
+        for port in $BLOCKED_PORTS; do
+            force_release_port $port
+        done
+    else
+        green "所有Tomcat常用端口已释放。"
+    fi
+}
+
+# 改进：设置Tomcat端口，使其支持任意HTTP和Shutdown端口组合
+set_tomcat_ports() {
+    local HTTP_PORT=$1
+    local SHUTDOWN_PORT=$2
+    local SERVER_XML="$TOMCAT_HOME/conf/server.xml"
+    
+    # 备份原始配置文件
+    cp "$SERVER_XML" "$SERVER_XML.bak.$(date +%Y%m%d%H%M%S)"
+    
+    yellow "正在修改Tomcat配置..."
+    # 修改HTTP连接器端口
+    sed -i '' "s/Connector port=\"[0-9]\+\" protocol=\"HTTP\/1.1\"/Connector port=\"$HTTP_PORT\" protocol=\"HTTP\/1.1\"/" "$SERVER_XML"
+    # 修改shutdown端口
+    sed -i '' "s/Server port=\"[0-9]\+\" shutdown/Server port=\"$SHUTDOWN_PORT\" shutdown/" "$SERVER_XML"
+    
+    green "已设置Tomcat HTTP端口为 $HTTP_PORT，shutdown端口为 $SHUTDOWN_PORT"
+}
+
+# 改进：最后确认端口是否可用
+confirm_port_available() {
+    local PORT=$1
+    local PORT_NAME=$2
+    
+    if lsof -i tcp:$PORT > /dev/null; then
+        red "错误: $PORT_NAME端口 $PORT 仍被占用，无法启动Tomcat。"
+        show_port_usage $PORT
+        return 1
+    fi
+    
+    green "$PORT_NAME端口 $PORT 可用，可以安全启动Tomcat。"
+    return 0
+}
+
+# 检测Tomcat是否已成功启动
+check_tomcat_running() {
+    local PORT=$1
+    local CONTEXT_PATH=$2
+    local URL="http://localhost:$PORT/$CONTEXT_PATH"
+    local MAX_RETRIES=20
+    local RETRY_INTERVAL=3
+    
+    yellow "等待Tomcat在端口 $PORT 上启动并部署 $CONTEXT_PATH..."
+    for ((i=1; i<=MAX_RETRIES; i++)); do
+        if curl -s "$URL" > /dev/null 2>&1; then
+            green "Tomcat成功启动，应用 $CONTEXT_PATH 已部署 (尝试 $i/$MAX_RETRIES)"
+            return 0
+        fi
+        
+        # 检查Tomcat是否仍在运行
+        if ! ps aux | grep '[j]ava' | grep -i 'tomcat' > /dev/null; then
+            red "错误: Tomcat进程已终止，启动失败。"
+            return 1
+        fi
+        
+        yellow "等待Tomcat启动... (尝试 $i/$MAX_RETRIES)"
+        sleep $RETRY_INTERVAL
+    done
+    
+    red "错误: 等待超时，Tomcat可能未成功启动或应用未成功部署。"
     return 1
 }
 
@@ -161,143 +294,31 @@ if [ -d "lib" ]; then
     green "已复制库文件"
 fi
 
-# 杀死所有Tomcat相关进程
-kill_tomcat_ports
+# 改进：清理所有Tomcat及相关进程，释放所有可能的端口
+yellow "清理所有Tomcat进程和释放端口..."
+kill_all_tomcat_processes
 
-# 在启动Tomcat之前添加端口检查
-yellow "检查并配置端口..."
-HTTP_PORT_AVAILABLE=0
-SHUTDOWN_PORT_AVAILABLE=0
+# 改进：查找可用的端口对
+yellow "查找可用的端口对..."
+PORT_PAIR=$(find_available_port_pair)
 
-# 检查默认HTTP端口
-if ! lsof -i tcp:${DEFAULT_HTTP_PORT} > /dev/null; then
-    green "默认HTTP端口 ${DEFAULT_HTTP_PORT} 可用"
-    HTTP_PORT_AVAILABLE=1
-    export APP_PORT=$DEFAULT_HTTP_PORT
-else
-    yellow "默认HTTP端口 ${DEFAULT_HTTP_PORT} 被占用"
-    # 强制终止占用进程
-    PIDS=$(lsof -ti tcp:${DEFAULT_HTTP_PORT})
-    if [ -n "$PIDS" ]; then
-        yellow "尝试强制终止占用进程: $PIDS"
-        kill -9 $PIDS
-        sleep 2
-        if ! lsof -i tcp:${DEFAULT_HTTP_PORT} > /dev/null; then
-            green "成功释放端口 ${DEFAULT_HTTP_PORT}"
-            HTTP_PORT_AVAILABLE=1
-            export APP_PORT=$DEFAULT_HTTP_PORT
-        fi
-    fi
-fi
-
-# 如果默认HTTP端口仍不可用，寻找替代端口
-if [ $HTTP_PORT_AVAILABLE -eq 0 ]; then
-    yellow "寻找替代HTTP端口..."
-    NEW_PORT=$(find_available_port 8081 8090)
-    if [ -n "$NEW_PORT" ]; then
-        green "找到可用HTTP端口: $NEW_PORT"
-        export APP_PORT=$NEW_PORT
-        HTTP_PORT_AVAILABLE=1
-    else
-        red "无法找到可用HTTP端口，部署终止"
-        exit 1
-    fi
-fi
-
-# 检查或计算shutdown端口
-if [ "$APP_PORT" = "$DEFAULT_HTTP_PORT" ]; then
-    # 使用默认shutdown端口
-    if ! lsof -i tcp:${DEFAULT_SHUTDOWN_PORT} > /dev/null; then
-        export SHUTDOWN_PORT=$DEFAULT_SHUTDOWN_PORT
-        SHUTDOWN_PORT_AVAILABLE=1
-    else
-        # 尝试释放默认shutdown端口
-        PIDS=$(lsof -ti tcp:${DEFAULT_SHUTDOWN_PORT})
-        if [ -n "$PIDS" ]; then
-            kill -9 $PIDS
-            sleep 2
-            if ! lsof -i tcp:${DEFAULT_SHUTDOWN_PORT} > /dev/null; then
-                export SHUTDOWN_PORT=$DEFAULT_SHUTDOWN_PORT
-                SHUTDOWN_PORT_AVAILABLE=1
-            fi
-        fi
-    fi
-else
-    # 计算新的shutdown端口
-    NEW_SHUTDOWN_PORT=$((APP_PORT - 75))
-    if ! lsof -i tcp:${NEW_SHUTDOWN_PORT} > /dev/null; then
-        export SHUTDOWN_PORT=$NEW_SHUTDOWN_PORT
-        SHUTDOWN_PORT_AVAILABLE=1
-    else
-        # 寻找任何可用端口作为shutdown端口
-        SHUTDOWN_PORT=$(find_available_port 8001 8050)
-        if [ -n "$SHUTDOWN_PORT" ]; then
-            SHUTDOWN_PORT_AVAILABLE=1
-        fi
-    fi
-fi
-
-# 如果任一端口不可用，终止部署
-if [ $HTTP_PORT_AVAILABLE -eq 0 ] || [ $SHUTDOWN_PORT_AVAILABLE -eq 0 ]; then
-    red "无法配置必要的端口，部署终止"
+if [ -z "$PORT_PAIR" ]; then
+    red "无法找到可用的端口对，部署终止。"
     exit 1
 fi
 
-# 配置Tomcat使用新端口
-if [ "$APP_PORT" != "$DEFAULT_HTTP_PORT" ] || [ "$SHUTDOWN_PORT" != "$DEFAULT_SHUTDOWN_PORT" ]; then
-    set_tomcat_port $APP_PORT
-fi
+# 解析端口对
+HTTP_PORT=$(echo $PORT_PAIR | cut -d':' -f1)
+SHUTDOWN_PORT=$(echo $PORT_PAIR | cut -d':' -f2)
 
-green "使用HTTP端口: ${APP_PORT}"
-green "使用Shutdown端口: ${SHUTDOWN_PORT}"
+green "使用HTTP端口: $HTTP_PORT"
+green "使用Shutdown端口: $SHUTDOWN_PORT"
 
-# 检查端口是否真的释放
-check_port_released() {
-    local PORT=$1
-    local MAX_RETRIES=5
-    
-    for i in {1..5}; do
-        if ! lsof -i tcp:$PORT > /dev/null; then
-            green "端口 $PORT 已释放。"
-            return 0
-        fi
-        yellow "等待端口 $PORT 释放... (尝试 $i/$MAX_RETRIES)"
-        sleep 2
-    done
-    
-    # 如果是主要端口（8080），尝试切换到其他可用端口
-    if [ $PORT -eq 8080 ]; then
-        yellow "端口 8080 无法释放，正在寻找其他可用端口..."
-        NEW_PORT=$(find_available_port 8081 8090)
-        if [ -n "$NEW_PORT" ]; then
-            green "找到可用端口: $NEW_PORT"
-            set_tomcat_port $NEW_PORT
-            export APP_PORT=$NEW_PORT
-            # 同时更新shutdown端口
-            export SHUTDOWN_PORT=$((NEW_PORT - 75))
-            return 0
-        fi
-    fi
-    
-    red "无法找到可用端口，部署终止。"
-    exit 1
-}
+# 设置Tomcat端口
+yellow "配置Tomcat端口..."
+set_tomcat_ports $HTTP_PORT $SHUTDOWN_PORT
 
-check_port_released 8080
-check_port_released 8005
-
-# 停止Tomcat时不使用默认端口
-yellow "停止Tomcat..."
-if [ -f "$TOMCAT_HOME/bin/shutdown.sh" ]; then
-    # 确保使用正确的shutdown端口
-    CATALINA_OPTS="-Dserver.port=$SHUTDOWN_PORT" $TOMCAT_HOME/bin/shutdown.sh || true
-    sleep 2
-fi
-
-# 再次确保端口释放
-check_port_released 8080
-check_port_released 8005
-
+# 创建WAR文件
 yellow "创建WAR文件..."
 rm -rf $TOMCAT_HOME/webapps/$APP_NAME
 rm -f $TOMCAT_HOME/webapps/$APP_NAME.war
@@ -307,34 +328,35 @@ cd ..
 
 cp $APP_NAME.war $TOMCAT_HOME/webapps/
 
+# 改进：启动前最后确认端口可用
+yellow "启动前最后确认端口可用..."
+confirm_port_available $HTTP_PORT "HTTP" || exit 1
+confirm_port_available $SHUTDOWN_PORT "Shutdown" || exit 1
+
+# 启动Tomcat
 yellow "启动Tomcat..."
 $TOMCAT_HOME/bin/startup.sh
 
+# 检测Tomcat是否成功启动
 yellow "检测Tomcat是否启动成功..."
-MAX_RETRIES=15
-DEPLOYMENT_STATUS=0
-for ((i=1; i<=MAX_RETRIES; i++)); do
-    if curl -s "http://localhost:${APP_PORT}" > /dev/null 2>&1; then
-        DEPLOYMENT_STATUS=1
-        break
-    fi
-    yellow "等待Tomcat启动... ($i/$MAX_RETRIES)"
-    sleep 2
-done
-
-if [ $DEPLOYMENT_STATUS -eq 1 ]; then
+if check_tomcat_running $HTTP_PORT $APP_NAME; then
     green "========================================"
     green "            部署完成！"
     green "----------------------------------------"
-    green "  访问地址: http://localhost:${APP_PORT}/${APP_NAME}"
-    if [ "$APP_PORT" != "$DEFAULT_HTTP_PORT" ]; then
-        yellow "  注意：使用了非默认端口 ${APP_PORT}"
+    green "  访问地址: http://localhost:${HTTP_PORT}/${APP_NAME}"
+    if [ "$HTTP_PORT" != "$DEFAULT_HTTP_PORT" ]; then
+        yellow "  注意：使用了非默认端口 ${HTTP_PORT}"
     fi
     green "========================================"
 else
-    red "Tomcat启动超时，请检查日志文件："
+    red "Tomcat启动超时或启动失败，请检查日志文件："
     red "  $TOMCAT_HOME/logs/catalina.out"
     exit 1
 fi
+
+# 记录当前使用的端口到临时文件，方便后续脚本复用
+echo "HTTP_PORT=$HTTP_PORT" > .port_config
+echo "SHUTDOWN_PORT=$SHUTDOWN_PORT" >> .port_config
+green "端口配置已保存到 .port_config 文件。"
 
 exit 0
