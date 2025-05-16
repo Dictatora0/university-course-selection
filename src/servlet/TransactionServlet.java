@@ -27,7 +27,7 @@ import java.util.logging.Logger;
 @WebServlet("/api/transactions/*")
 public class TransactionServlet extends BaseServlet {
     private static final Logger LOGGER = Logger.getLogger(TransactionServlet.class.getName());
-    private final TransactionDAO transactionDao = new TransactionDAO();
+    private final TransactionDAO transactionDAO = new TransactionDAO();
     private final StudentDAO studentDao = new StudentDAO();
     private final Gson gson = new Gson();
 
@@ -77,7 +77,7 @@ public class TransactionServlet extends BaseServlet {
                 return;
             }
         } catch (NumberFormatException e) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的交易金额格式");
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "交易金额格式不正确");
             return;
         }
         
@@ -102,7 +102,7 @@ public class TransactionServlet extends BaseServlet {
         transaction.setDescription(description);
         // transaction.setTransactionDate(new java.util.Date()); // DAO会处理时间
 
-        boolean success = transactionDao.add(transaction); // 假设 TransactionDAO 有 add(Transaction) 方法
+        boolean success = transactionDAO.add(transaction);
         
         if (success) {
             // 更新余额
@@ -120,31 +120,24 @@ public class TransactionServlet extends BaseServlet {
     private void handleGetStudentTransactions(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
         if (session == null || session.getAttribute("studentId") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录");
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         String studentId = (String) session.getAttribute("studentId");
-
-        // 可以从查询参数获取分页信息, 例如 ?page=1&limit=10
-        // String pageParam = req.getParameter("page");
-        // String limitParam = req.getParameter("limit");
-        // int page = (pageParam != null) ? Integer.parseInt(pageParam) : 1;
-        // int limit = (limitParam != null) ? Integer.parseInt(limitParam) : 10;
-
-        List<Transaction> transactions = transactionDao.findByStudentId(studentId); // 假设DAO有此方法
+        List<Transaction> transactions = transactionDAO.findByStudentId(studentId);
         ResponseUtil.sendSuccessResponse(resp, "获取交易记录成功", transactions);
     }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String pathInfo = req.getPathInfo();
-
-        // 如果路径是 / 或者 /student，则获取当前登录学生的交易记录
-        if (pathInfo == null || pathInfo.equals("/") || pathInfo.equals("/student")) {
+        if (pathInfo == null || pathInfo.equals("/")) {
+            // 默认列出交易记录
+            handleGetStudentTransactions(req, resp);
+        } else if (pathInfo.equals("/list")) {
             handleGetStudentTransactions(req, resp);
         } else {
-            // 可以根据需要处理其他GET请求，例如 /transactions/{transactionId}
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "未找到请求的资源: GET " + pathInfo);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "未找到请求的资源");
         }
     }
 
@@ -165,6 +158,11 @@ public class TransactionServlet extends BaseServlet {
     }
     
     public void student(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        handleGetStudentTransactions(req, resp);
+    }
+    
+    // 添加处理 list 请求的方法
+    public void list(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         handleGetStudentTransactions(req, resp);
     }
 } 

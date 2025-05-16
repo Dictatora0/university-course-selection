@@ -15,14 +15,13 @@ import javax.servlet.http.HttpSession;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.SQLException;
-import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
  * 处理支付相关操作的Servlet
  */
-@WebServlet("/api/payment")
+@WebServlet("/api/payment/*")
 public class PaymentServlet extends HttpServlet {
     private static final Logger logger = Logger.getLogger(PaymentServlet.class.getName());
     private StudentDAO studentDAO = new StudentDAO();
@@ -30,14 +29,11 @@ public class PaymentServlet extends HttpServlet {
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        // 获取操作类型
-        String action = request.getParameter("action");
-        
-        if (action == null) {
-            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "未指定操作类型");
-            return;
+        String pathInfo = request.getPathInfo();
+        if (pathInfo == null) {
+            pathInfo = "/";
         }
-
+        
         HttpSession session = request.getSession(false);
         if (session == null || session.getAttribute("studentId") == null) {
             ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
@@ -66,16 +62,16 @@ public class PaymentServlet extends HttpServlet {
                 return;
             }
 
-            // 根据操作类型处理
-            switch (action) {
-                case "deposit":
+            // 根据路径处理不同操作
+            switch (pathInfo) {
+                case "/deposit":
                     handleDeposit(studentId, amount, response);
                     break;
-                case "withdraw":
+                case "/withdraw":
                     handleWithdraw(studentId, amount, response);
                     break;
                 default:
-                    ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "不支持的操作类型: " + action);
+                    ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "不支持的操作: " + pathInfo);
             }
         } catch (Exception e) {
             logger.log(Level.SEVERE, "处理支付操作时发生错误", e);

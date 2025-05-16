@@ -37,7 +37,7 @@ public class MessageServlet extends BaseServlet {
         // 验证用户是否已登录
         HttpSession session = req.getSession(false);
         if (session == null || session.getAttribute("studentId") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录");
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
@@ -105,7 +105,7 @@ public class MessageServlet extends BaseServlet {
         // 验证用户是否已登录
         HttpSession session = req.getSession(false);
         if (session == null || session.getAttribute("studentId") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录");
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
@@ -154,7 +154,7 @@ public class MessageServlet extends BaseServlet {
         // 验证用户是否已登录
         HttpSession session = req.getSession(false);
         if (session == null || session.getAttribute("studentId") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录");
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
@@ -183,7 +183,7 @@ public class MessageServlet extends BaseServlet {
         // 验证用户是否已登录
         HttpSession session = req.getSession(false);
         if (session == null || session.getAttribute("studentId") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录");
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
@@ -203,7 +203,7 @@ public class MessageServlet extends BaseServlet {
         // 验证用户是否已登录
         HttpSession session = req.getSession(false);
         if (session == null || session.getAttribute("studentId") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录");
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
@@ -238,7 +238,7 @@ public class MessageServlet extends BaseServlet {
         // 验证用户是否已登录
         HttpSession session = req.getSession(false);
         if (session == null || session.getAttribute("studentId") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录");
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         

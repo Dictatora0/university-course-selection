@@ -34,7 +34,7 @@ public class FriendshipServlet extends BaseServlet {
         HttpSession session = req.getSession(false);
         
         if (session == null || session.getAttribute("studentId") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录");
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
@@ -51,7 +51,7 @@ public class FriendshipServlet extends BaseServlet {
         HttpSession session = req.getSession(false);
         
         if (session == null || session.getAttribute("studentId") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录");
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
@@ -98,7 +98,7 @@ public class FriendshipServlet extends BaseServlet {
         HttpSession session = req.getSession(false);
         
         if (session == null || session.getAttribute("studentId") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录");
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
@@ -141,7 +141,7 @@ public class FriendshipServlet extends BaseServlet {
         HttpSession session = req.getSession(false);
         
         if (session == null || session.getAttribute("studentId") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录");
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
@@ -176,7 +176,7 @@ public class FriendshipServlet extends BaseServlet {
         HttpSession session = req.getSession(false);
         
         if (session == null || session.getAttribute("studentId") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录");
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
