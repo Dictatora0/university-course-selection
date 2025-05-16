@@ -73,6 +73,36 @@ public class DepartmentDAO {
     }
     
     /**
+     * 根据名称查询院系
+     */
+    public Department findByName(String deptName) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        Department department = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT * FROM Department WHERE dept_name = ?";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setString(1, deptName);
+            rs = pstmt.executeQuery();
+            
+            if (rs.next()) {
+                department = new Department();
+                department.setDeptId(rs.getString("dept_id"));
+                department.setDeptName(rs.getString("dept_name"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
+        }
+        
+        return department;
+    }
+    
+    /**
      * 添加院系
      */
     public boolean add(Department department) {

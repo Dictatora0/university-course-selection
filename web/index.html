@@ -5,11 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>在线选课系统 - 登录</title>
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .form-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        .register-link {
+            color: #3498db;
+            cursor: pointer;
+            text-decoration: underline;
+            margin-top: 10px;
+            display: block;
+            text-align: center;
+        }
+        .register-form {
+            display: none;
+        }
+        .form-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .back-btn {
+            font-size: 14px;
+            color: #3498db;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+    </style>
 </head>
 <body>
     <div class="login-container">
         <h1>在线选课系统</h1>
-        <div class="login-form">
+        
+        <!-- 登录表单 -->
+        <div class="login-form" id="loginFormContainer">
             <div class="form-group">
                 <label for="studentId">学号</label>
                 <input type="text" id="studentId" placeholder="请输入学号">
@@ -19,7 +50,34 @@
                 <input type="password" id="password" placeholder="请输入密码">
             </div>
             <button id="loginBtn" class="btn-login">登录</button>
+            <a class="register-link" id="showRegisterForm">没有账号？点击注册</a>
             <div id="errorMsg" class="error-message"></div>
+        </div>
+        
+        <!-- 注册表单 -->
+        <div class="register-form" id="registerFormContainer">
+            <div class="form-title">
+                <h2>注册新账号</h2>
+                <span class="back-btn" id="backToLogin">返回登录</span>
+            </div>
+            <div class="form-group">
+                <label for="regStudentId">学号</label>
+                <input type="text" id="regStudentId" placeholder="请输入学号">
+            </div>
+            <div class="form-group">
+                <label for="regName">姓名</label>
+                <input type="text" id="regName" placeholder="请输入姓名">
+            </div>
+            <div class="form-group">
+                <label for="regPassword">密码</label>
+                <input type="password" id="regPassword" placeholder="请输入密码">
+            </div>
+            <div class="form-group">
+                <label for="regConfirmPassword">确认密码</label>
+                <input type="password" id="regConfirmPassword" placeholder="请再次输入密码">
+            </div>
+            <button id="registerBtn" class="btn-login">注册</button>
+            <div id="regErrorMsg" class="error-message"></div>
         </div>
     </div>
     
@@ -30,6 +88,30 @@
             const studentIdInput = document.getElementById('studentId');
             const passwordInput = document.getElementById('password');
             const errorMsg = document.getElementById('errorMsg');
+            
+            const registerBtn = document.getElementById('registerBtn');
+            const regStudentIdInput = document.getElementById('regStudentId');
+            const regNameInput = document.getElementById('regName');
+            const regPasswordInput = document.getElementById('regPassword');
+            const regConfirmPasswordInput = document.getElementById('regConfirmPassword');
+            const regErrorMsg = document.getElementById('regErrorMsg');
+            
+            const showRegisterFormBtn = document.getElementById('showRegisterForm');
+            const backToLoginBtn = document.getElementById('backToLogin');
+            const loginFormContainer = document.getElementById('loginFormContainer');
+            const registerFormContainer = document.getElementById('registerFormContainer');
+            
+            // 切换到注册表单
+            showRegisterFormBtn.addEventListener('click', function() {
+                loginFormContainer.style.display = 'none';
+                registerFormContainer.style.display = 'block';
+            });
+            
+            // 返回登录表单
+            backToLoginBtn.addEventListener('click', function() {
+                registerFormContainer.style.display = 'none';
+                loginFormContainer.style.display = 'block';
+            });
             
             // 检查是否已登录
             API.student.getInfo()
@@ -42,6 +124,7 @@
                     console.log('请登录');
                 });
             
+            // 登录
             loginBtn.addEventListener('click', async function() {
                 const studentId = studentIdInput.value.trim();
                 const password = passwordInput.value.trim();
@@ -60,10 +143,70 @@
                 }
             });
             
+            // 注册
+            registerBtn.addEventListener('click', async function() {
+                const studentId = regStudentIdInput.value.trim();
+                const name = regNameInput.value.trim();
+                const password = regPasswordInput.value.trim();
+                const confirmPassword = regConfirmPasswordInput.value.trim();
+                
+                // 验证输入
+                if (!studentId || !name || !password || !confirmPassword) {
+                    regErrorMsg.textContent = '请填写所有必填字段';
+                    return;
+                }
+                
+                if (password !== confirmPassword) {
+                    regErrorMsg.textContent = '两次输入的密码不一致';
+                    return;
+                }
+                
+                try {
+                    regErrorMsg.textContent = '';
+                    console.log('准备发送注册请求，参数：', {studentId, name, password: '***'});
+                    
+                    // 显示加载状态
+                    registerBtn.disabled = true;
+                    registerBtn.textContent = '注册中...';
+                    
+                    await API.student.register(studentId, name, password);
+                    console.log('注册请求成功');
+                    
+                    alert('注册成功，请登录');
+                    
+                    // 清空注册表单并返回登录页面
+                    regStudentIdInput.value = '';
+                    regNameInput.value = '';
+                    regPasswordInput.value = '';
+                    regConfirmPasswordInput.value = '';
+                    
+                    // 返回登录表单
+                    registerFormContainer.style.display = 'none';
+                    loginFormContainer.style.display = 'block';
+                    
+                    // 自动填充学号
+                    studentIdInput.value = studentId;
+                } catch (error) {
+                    console.error('注册请求失败：', error);
+                    regErrorMsg.textContent = error.message || '注册失败，请稍后再试';
+                } finally {
+                    // 恢复按钮状态
+                    registerBtn.disabled = false;
+                    registerBtn.textContent = '注册';
+                }
+            });
+            
             // 按回车键登录
             passwordInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     loginBtn.click();
+                }
+            });
+            
+            // 按回车键注册
+            regConfirmPasswordInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    registerBtn.click();
                 }
             });
         });

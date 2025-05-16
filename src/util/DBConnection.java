@@ -68,7 +68,18 @@ public class DBConnection {
         if (!initialized) {
             throw new SQLException("数据库连接初始化失败");
         }
-        return DriverManager.getConnection(jdbcUrl, jdbcUsername, jdbcPassword);
+        try {
+            System.out.println("[DBConnection] 尝试连接数据库: " + jdbcUrl);
+            Connection conn = DriverManager.getConnection(jdbcUrl, jdbcUsername, jdbcPassword);
+            System.out.println("[DBConnection] 数据库连接成功");
+            return conn;
+        } catch (SQLException e) {
+            System.err.println("[DBConnection] 连接数据库失败: " + e.getMessage());
+            System.err.println("  连接URL: " + jdbcUrl);
+            System.err.println("  用户名: " + jdbcUsername);
+            System.err.println("  密码: " + "********");
+            throw e;
+        }
     }
 
     /**
