@@ -162,6 +162,63 @@ public class FriendshipDAO {
     }
     
     /**
+     * 获取学生的所有好友的详细信息 (Student对象列表)
+     */
+    public List<Student> getFriendsWithDetails(String studentId) {
+        List<Student> friends = new ArrayList<>();
+        String sql = "SELECT s.* FROM Student s JOIN Friendship f ON " +
+                     "(s.student_id = f.student_id2 AND f.student_id1 = ?) OR " +
+                     "(s.student_id = f.student_id1 AND f.student_id2 = ?) " +
+                     "WHERE s.student_id != ?"; // 确保不把自己列为好友（尽管好友关系表设计上应该避免这种情况）
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, studentId);
+            pstmt.setString(2, studentId);
+            pstmt.setString(3, studentId);
+
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    Student friend = new Student();
+                    friend.setStudentId(rs.getString("student_id"));
+                    friend.setName(rs.getString("name"));
+                    // friend.setPassword(rs.getString("password")); // 通常不返回密码
+                    friend.setBirthDate(rs.getDate("birth_date"));
+                    friend.setIdCard(rs.getString("id_card"));
+                    friend.setAddress(rs.getString("address"));
+                    friend.setCreatedAt(rs.getTimestamp("created_at"));
+                    friend.setBalance(rs.getDouble("balance")); // 假设Student有setBalance
+                    friends.add(friend);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace(); // 更健壮的错误处理
+        }
+        return friends;
+    }
+
+    /**
+     * 获取好友数量
+     */
+    public int getFriendCount(String studentId) {
+        String sql = "SELECT COUNT(*) FROM Friendship WHERE student_id1 = ? OR student_id2 = ?";
+        int count = 0;
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, studentId);
+            pstmt.setString(2, studentId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    count = rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return count;
+    }
+    
+    /**
      * 推荐好友（选择与学生选择相同课程的其他学生）
      */
     public List<Student> recommendFriends(String studentId, int limit) {

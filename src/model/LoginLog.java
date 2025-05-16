@@ -10,6 +10,7 @@ public class LoginLog {
     private String studentId;
     private Date loginTime;
     private String ipAddress;
+    private String deviceInfo;
     
     // 用于连接查询的扩展属性
     private String studentName;
@@ -17,11 +18,12 @@ public class LoginLog {
     public LoginLog() {
     }
     
-    public LoginLog(Long logId, String studentId, Date loginTime, String ipAddress) {
+    public LoginLog(Long logId, String studentId, Date loginTime, String ipAddress, String deviceInfo) {
         this.logId = logId;
         this.studentId = studentId;
         this.loginTime = loginTime;
         this.ipAddress = ipAddress;
+        this.deviceInfo = deviceInfo;
     }
     
     public Long getLogId() {
@@ -56,6 +58,14 @@ public class LoginLog {
         this.ipAddress = ipAddress;
     }
     
+    public String getDeviceInfo() {
+        return deviceInfo;
+    }
+    
+    public void setDeviceInfo(String deviceInfo) {
+        this.deviceInfo = deviceInfo;
+    }
+    
     public String getStudentName() {
         return studentName;
     }
@@ -71,6 +81,7 @@ public class LoginLog {
                 ", studentId='" + studentId + '\'' +
                 ", loginTime=" + loginTime +
                 ", ipAddress='" + ipAddress + '\'' +
+                ", deviceInfo='" + deviceInfo + '\'' +
                 ", studentName='" + studentName + '\'' +
                 '}';
     }

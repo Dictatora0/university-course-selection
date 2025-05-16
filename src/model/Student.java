@@ -13,6 +13,8 @@ public class Student {
     private String address;
     private String password;
     private Date createdAt;
+    private double balance;
+    private String deptId;
     
     public Student() {
     }
@@ -84,6 +86,22 @@ public class Student {
         this.createdAt = createdAt;
     }
     
+    public double getBalance() {
+        return balance;
+    }
+
+    public void setBalance(double balance) {
+        this.balance = balance;
+    }
+    
+    public String getDeptId() {
+        return deptId;
+    }
+    
+    public void setDeptId(String deptId) {
+        this.deptId = deptId;
+    }
+    
     @Override
     public String toString() {
         return "Student{" +
@@ -92,6 +110,8 @@ public class Student {
                 ", birthDate=" + birthDate +
                 ", idCard='" + idCard + '\'' +
                 ", address='" + address + '\'' +
+                ", deptId='" + deptId + '\'' +
+                ", balance=" + balance +
                 ", createdAt=" + createdAt +
                 '}';
     }

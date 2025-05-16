@@ -3,6 +3,7 @@ package dao;
 import model.Student;
 import util.DBConnection;
 import util.PasswordUtil;
+import util.DBUtil;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -17,29 +18,25 @@ public class StudentDAO {
      * 通过学号查询学生
      */
     public Student findById(String studentId) {
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        Student student = null;
-        
-        try {
-            conn = DBConnection.getConnection();
-            String sql = "SELECT * FROM Student WHERE student_id = ?";
-            pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, studentId);
-            rs = pstmt.executeQuery();
+        String sql = "SELECT * FROM student WHERE student_id = ?";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
             
-            if (rs.next()) {
-                student = mapResultSetToStudent(rs);
+            pstmt.setString(1, studentId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    Student student = new Student();
+                    student.setStudentId(rs.getString("student_id"));
+                    student.setName(rs.getString("name"));
+                    student.setPassword(rs.getString("password"));
+                    student.setBalance(rs.getDouble("balance"));
+                    return student;
+                }
             }
         } catch (SQLException e) {
-            System.err.println("[StudentDAO.findById] SQLException: " + e.getMessage());
             e.printStackTrace();
-        } finally {
-            DBConnection.close(conn, pstmt, rs);
         }
-        
-        return student;
+        return null;
     }
     
     /**
@@ -155,63 +152,72 @@ public class StudentDAO {
             System.out.println("  Password hash: " + hashedPassword.substring(0, Math.min(10, hashedPassword.length())) + "...");
             
             conn = DBConnection.getConnection();
-            // 使用一个空的INSERT语句，根据非空字段动态构建
-            StringBuilder sqlBuilder = new StringBuilder("INSERT INTO Student (student_id, name, password");
-            StringBuilder valuesBuilder = new StringBuilder("(?, ?, ?");
             
-            // 构建参数列表
-            List<Object> params = new ArrayList<>();
-            params.add(student.getStudentId());
-            params.add(student.getName());
-            params.add(hashedPassword);
-            
-            // 添加可选字段
-            if (student.getBirthDate() != null) {
-                sqlBuilder.append(", birth_date");
+            try {
+                // 使用一个空的INSERT语句，根据非空字段动态构建
+                StringBuilder sqlBuilder = new StringBuilder("INSERT INTO Student (student_id, name, password");
+                StringBuilder valuesBuilder = new StringBuilder("VALUES (?, ?, ?");
+                
+                // 准备参数列表
+                List<Object> params = new ArrayList<>();
+                params.add(student.getStudentId());
+                params.add(student.getName());
+                params.add(hashedPassword);
+                
+                // 检查并添加可选字段
+                if (student.getBirthDate() != null) {
+                    sqlBuilder.append(", birth_date");
+                    valuesBuilder.append(", ?");
+                    params.add(student.getBirthDate());
+                }
+                
+                if (student.getIdCard() != null && !student.getIdCard().trim().isEmpty()) {
+                    sqlBuilder.append(", id_card");
+                    valuesBuilder.append(", ?");
+                    params.add(student.getIdCard());
+                }
+                
+                if (student.getAddress() != null && !student.getAddress().trim().isEmpty()) {
+                    sqlBuilder.append(", address");
+                    valuesBuilder.append(", ?");
+                    params.add(student.getAddress());
+                }
+                
+                if (student.getDeptId() != null && !student.getDeptId().trim().isEmpty()) {
+                    sqlBuilder.append(", dept_id");
+                    valuesBuilder.append(", ?");
+                    params.add(student.getDeptId());
+                }
+                
+                // 添加余额字段，默认为0
+                sqlBuilder.append(", balance");
                 valuesBuilder.append(", ?");
-                params.add(new java.sql.Date(student.getBirthDate().getTime()));
+                params.add(0.0); // 默认余额为0
+                
+                // 完成SQL语句
+                sqlBuilder.append(") ");
+                valuesBuilder.append(")");
+                String sql = sqlBuilder.toString() + valuesBuilder.toString();
+                
+                System.out.println("[StudentDAO.add] 执行SQL: " + sql);
+                
+                pstmt = conn.prepareStatement(sql);
+                
+                // 设置参数
+                for (int i = 0; i < params.size(); i++) {
+                    pstmt.setObject(i + 1, params.get(i));
+                }
+                
+                int rowsAffected = pstmt.executeUpdate();
+                success = rowsAffected > 0;
+                
+                System.out.println("[StudentDAO.add] 执行结果: " + (success ? "成功" : "失败") + ", 影响行数: " + rowsAffected);
+            } catch (SQLException e) {
+                System.err.println("[StudentDAO.add] SQL执行异常: " + e.getMessage());
+                e.printStackTrace();
             }
-            
-            if (student.getIdCard() != null && !student.getIdCard().trim().isEmpty()) {
-                sqlBuilder.append(", id_card");
-                valuesBuilder.append(", ?");
-                params.add(student.getIdCard());
-            }
-            
-            if (student.getAddress() != null && !student.getAddress().trim().isEmpty()) {
-                sqlBuilder.append(", address");
-                valuesBuilder.append(", ?");
-                params.add(student.getAddress());
-            }
-            
-            // 完成SQL语句
-            sqlBuilder.append(") VALUES ").append(valuesBuilder).append(")");
-            String sql = sqlBuilder.toString();
-            
-            System.out.println("[StudentDAO.add] 执行SQL: " + sql);
-            
-            pstmt = conn.prepareStatement(sql);
-            
-            // 设置参数
-            for (int i = 0; i < params.size(); i++) {
-                pstmt.setObject(i + 1, params.get(i));
-            }
-            
-            int rowsAffected = pstmt.executeUpdate();
-            success = rowsAffected > 0;
-            
-            if (success) {
-                System.out.println("[StudentDAO.add] 添加学生成功: " + student.getStudentId());
-            } else {
-                System.err.println("[StudentDAO.add] 添加学生失败 (0行受影响): " + student.getStudentId());
-            }
-        } catch (SQLException e) {
-            System.err.println("[StudentDAO.add] SQL异常: " + e.getMessage());
-            System.err.println("  SQL状态: " + e.getSQLState());
-            System.err.println("  错误代码: " + e.getErrorCode());
-            e.printStackTrace();
         } catch (Exception e) {
-            System.err.println("[StudentDAO.add] 未知异常: " + e.getMessage());
+            System.err.println("[StudentDAO.add] 异常: " + e.getMessage());
             e.printStackTrace();
         } finally {
             DBConnection.close(conn, pstmt, null);
@@ -305,5 +311,37 @@ public class StudentDAO {
         student.setPassword(rs.getString("password"));
         student.setCreatedAt(rs.getTimestamp("created_at"));
         return student;
+    }
+
+    public boolean updateBalance(String studentId, double newBalance) {
+        String sql = "UPDATE student SET balance = ? WHERE student_id = ?";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            
+            pstmt.setDouble(1, newBalance);
+            pstmt.setString(2, studentId);
+            
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
+    public String getName(String studentId) {
+        String sql = "SELECT name FROM student WHERE student_id = ?";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            
+            pstmt.setString(1, studentId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("name");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 } 

@@ -1,190 +1,126 @@
 package dao;
 
 import model.Transaction;
-import util.DBConnection;
+import model.Student; 
+import util.DBUtil; // 确保这是您项目中正确的数据库连接工具类
 
-import java.math.BigDecimal;
 import java.sql.*;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 交易数据访问对象，处理与Transaction表相关的数据库操作
- */
 public class TransactionDAO {
-    
+
     /**
-     * 创建交易记录
+     * 添加一个新的交易记录到数据库。
+     * 交易对象应已设置 studentId, type, amount, 和 description。
+     * transactionDate 如果未提供，则自动设置。
      */
     public boolean add(Transaction transaction) {
+        // 请确保表名 "Transactions" 和列名与您的数据库结构一致
+        String sql = "INSERT INTO Transactions (student_id, type, amount, description, transaction_date, related_student_id) " +
+                     "VALUES (?, ?, ?, ?, ?, ?)";
         Connection conn = null;
         PreparedStatement pstmt = null;
         boolean success = false;
-        
+
         try {
-            conn = DBConnection.getConnection();
-            String sql = "INSERT INTO Transaction (from_student_id, to_student_id, amount, transaction_time) " +
-                    "VALUES (?, ?, ?, ?)";
-            pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, transaction.getFromStudentId());
-            pstmt.setString(2, transaction.getToStudentId());
+            conn = DBUtil.getConnection(); 
+            pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+
+            pstmt.setString(1, transaction.getStudentId());
+            pstmt.setString(2, transaction.getType().name()); // 将枚举名存为字符串
             pstmt.setBigDecimal(3, transaction.getAmount());
+            pstmt.setString(4, transaction.getDescription());
             
-            if (transaction.getTransactionTime() == null) {
-                pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+            if (transaction.getTransactionDate() == null) {
+                pstmt.setTimestamp(5, new Timestamp(System.currentTimeMillis()));
             } else {
-                pstmt.setTimestamp(4, new Timestamp(transaction.getTransactionTime().getTime()));
+                pstmt.setTimestamp(5, new Timestamp(transaction.getTransactionDate().getTime()));
             }
-            
+            pstmt.setString(6, transaction.getRelatedStudentId()); //可以为 null
+
             int rowsAffected = pstmt.executeUpdate();
-            success = rowsAffected > 0;
+            if (rowsAffected > 0) {
+                try (ResultSet generatedKeys = pstmt.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        transaction.setTransactionId(generatedKeys.getLong(1));
+                    }
+                }
+                success = true;
+            }
         } catch (SQLException e) {
-            e.printStackTrace();
+            e.printStackTrace(); // 考虑更健壮的日志记录
         } finally {
-            DBConnection.close(conn, pstmt, null);
+            // 正确关闭资源
+            try { if (pstmt != null) pstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { e.printStackTrace(); }
         }
-        
         return success;
     }
-    
+
     /**
-     * 查询学生的转账记录（作为发送方或接收方）
+     * 根据 studentId 查找所有交易记录，按日期降序排列。
+     * 通过 JOIN 填充 studentName 和 relatedStudentName。
      */
     public List<Transaction> findByStudentId(String studentId) {
+        List<Transaction> transactions = new ArrayList<>();
+        // 请确保表名 (Transactions, Student) 和列名与您的数据库结构一致
+        String sql = "SELECT t.*, s.name as student_name, rs.name as related_student_name " +
+                     "FROM Transactions t " +
+                     "JOIN Student s ON t.student_id = s.student_id " +
+                     "LEFT JOIN Student rs ON t.related_student_id = rs.student_id " + // LEFT JOIN 因为 related_student_id 可能为 null
+                     "WHERE t.student_id = ? ORDER BY t.transaction_date DESC";
+        
         Connection conn = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
-        List<Transaction> transactions = new ArrayList<>();
-        
+
         try {
-            conn = DBConnection.getConnection();
-            String sql = "SELECT t.*, s1.name as from_name, s2.name as to_name FROM Transaction t " +
-                    "JOIN Student s1 ON t.from_student_id = s1.student_id " +
-                    "JOIN Student s2 ON t.to_student_id = s2.student_id " +
-                    "WHERE t.from_student_id = ? OR t.to_student_id = ? " +
-                    "ORDER BY t.transaction_time DESC";
+            conn = DBUtil.getConnection(); 
             pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, studentId);
-            pstmt.setString(2, studentId);
             rs = pstmt.executeQuery();
-            
+
             while (rs.next()) {
                 Transaction transaction = new Transaction();
                 transaction.setTransactionId(rs.getLong("transaction_id"));
-                transaction.setFromStudentId(rs.getString("from_student_id"));
-                transaction.setToStudentId(rs.getString("to_student_id"));
+                transaction.setStudentId(rs.getString("student_id"));
+                
+                String typeStr = rs.getString("type");
+                if (typeStr != null) {
+                    try {
+                        transaction.setType(Transaction.TransactionType.valueOf(typeStr.toUpperCase()));
+                    } catch (IllegalArgumentException e) {
+                        System.err.println("数据库中存在无效的交易类型，ID: " + rs.getLong("transaction_id") + ", 类型: " + typeStr);
+                        // 可选：设置一个默认类型或跳过此记录
+                        // transaction.setType(Transaction.TransactionType.UNKNOWN); 
+                        continue; // 跳过此格式错误的交易
+                    }
+                } else {
+                     System.err.println("数据库中存在空的交易类型，ID: " + rs.getLong("transaction_id"));
+                    continue; // 如果类型是必需的且为 null，则跳过
+                }
+                
                 transaction.setAmount(rs.getBigDecimal("amount"));
-                transaction.setTransactionTime(rs.getTimestamp("transaction_time"));
-                transaction.setFromStudentName(rs.getString("from_name"));
-                transaction.setToStudentName(rs.getString("to_name"));
+                transaction.setTransactionDate(rs.getTimestamp("transaction_date"));
+                transaction.setDescription(rs.getString("description"));
+                transaction.setRelatedStudentId(rs.getString("related_student_id")); //可能为 null
+                
+                // 从 JOIN 中填充姓名
+                transaction.setStudentName(rs.getString("student_name"));
+                transaction.setRelatedStudentName(rs.getString("related_student_name")); // 如果没有 related_student_id，则为 null
+                
                 transactions.add(transaction);
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            e.printStackTrace(); // 考虑更健壮的日志记录
         } finally {
-            DBConnection.close(conn, pstmt, rs);
+            // 正确关闭资源
+            try { if (rs != null) rs.close(); } catch (SQLException e) { e.printStackTrace(); }
+            try { if (pstmt != null) pstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { e.printStackTrace(); }
         }
-        
         return transactions;
     }
-    
-    /**
-     * 查询两个学生之间的交易记录
-     */
-    public List<Transaction> findBetweenStudents(String studentId1, String studentId2) {
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        List<Transaction> transactions = new ArrayList<>();
-        
-        try {
-            conn = DBConnection.getConnection();
-            String sql = "SELECT t.*, s1.name as from_name, s2.name as to_name FROM Transaction t " +
-                    "JOIN Student s1 ON t.from_student_id = s1.student_id " +
-                    "JOIN Student s2 ON t.to_student_id = s2.student_id " +
-                    "WHERE (t.from_student_id = ? AND t.to_student_id = ?) " +
-                    "OR (t.from_student_id = ? AND t.to_student_id = ?) " +
-                    "ORDER BY t.transaction_time DESC";
-            pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, studentId1);
-            pstmt.setString(2, studentId2);
-            pstmt.setString(3, studentId2);
-            pstmt.setString(4, studentId1);
-            rs = pstmt.executeQuery();
-            
-            while (rs.next()) {
-                Transaction transaction = new Transaction();
-                transaction.setTransactionId(rs.getLong("transaction_id"));
-                transaction.setFromStudentId(rs.getString("from_student_id"));
-                transaction.setToStudentId(rs.getString("to_student_id"));
-                transaction.setAmount(rs.getBigDecimal("amount"));
-                transaction.setTransactionTime(rs.getTimestamp("transaction_time"));
-                transaction.setFromStudentName(rs.getString("from_name"));
-                transaction.setToStudentName(rs.getString("to_name"));
-                transactions.add(transaction);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            DBConnection.close(conn, pstmt, rs);
-        }
-        
-        return transactions;
-    }
-    
-    /**
-     * 获取学生的交易总额
-     */
-    public BigDecimal getTotalAmountSent(String studentId) {
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        
-        try {
-            conn = DBConnection.getConnection();
-            String sql = "SELECT SUM(amount) as total_amount FROM Transaction WHERE from_student_id = ?";
-            pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, studentId);
-            rs = pstmt.executeQuery();
-            
-            if (rs.next() && rs.getBigDecimal("total_amount") != null) {
-                totalAmount = rs.getBigDecimal("total_amount");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            DBConnection.close(conn, pstmt, rs);
-        }
-        
-        return totalAmount;
-    }
-    
-    /**
-     * 获取学生收到的交易总额
-     */
-    public BigDecimal getTotalAmountReceived(String studentId) {
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        
-        try {
-            conn = DBConnection.getConnection();
-            String sql = "SELECT SUM(amount) as total_amount FROM Transaction WHERE to_student_id = ?";
-            pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, studentId);
-            rs = pstmt.executeQuery();
-            
-            if (rs.next() && rs.getBigDecimal("total_amount") != null) {
-                totalAmount = rs.getBigDecimal("total_amount");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            DBConnection.close(conn, pstmt, rs);
-        }
-        
-        return totalAmount;
-    }
-} 
+}

@@ -65,6 +65,13 @@ public class EnrollmentServlet extends BaseServlet {
         }
     }
     
+    /**
+     * 选课方法 (别名，与add方法功能相同)
+     */
+    public void enroll(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        add(req, resp);
+    }
+    
     public void drop(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
         if (session != null && session.getAttribute("student") != null) {
