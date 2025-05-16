@@ -1,23 +1,29 @@
-package src.model;
+package model;
 
 import java.util.Date;
 
+/**
+ * 登录日志实体类
+ */
 public class LoginLog {
     private Long logId;
     private String studentId;
     private Date loginTime;
     private String ipAddress;
     
+    // 用于连接查询的扩展属性
+    private String studentName;
+    
     public LoginLog() {
     }
     
-    public LoginLog(String studentId, String ipAddress) {
+    public LoginLog(Long logId, String studentId, Date loginTime, String ipAddress) {
+        this.logId = logId;
         this.studentId = studentId;
+        this.loginTime = loginTime;
         this.ipAddress = ipAddress;
-        this.loginTime = new Date();
     }
     
-    // Getters and Setters
     public Long getLogId() {
         return logId;
     }
@@ -50,6 +56,14 @@ public class LoginLog {
         this.ipAddress = ipAddress;
     }
     
+    public String getStudentName() {
+        return studentName;
+    }
+    
+    public void setStudentName(String studentName) {
+        this.studentName = studentName;
+    }
+    
     @Override
     public String toString() {
         return "LoginLog{" +
@@ -57,6 +71,7 @@ public class LoginLog {
                 ", studentId='" + studentId + '\'' +
                 ", loginTime=" + loginTime +
                 ", ipAddress='" + ipAddress + '\'' +
+                ", studentName='" + studentName + '\'' +
                 '}';
     }
 } 

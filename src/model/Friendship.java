@@ -1,28 +1,28 @@
-package src.model;
+package model;
 
 import java.util.Date;
 
+/**
+ * 好友关系实体类
+ */
 public class Friendship {
     private String studentId1;
     private String studentId2;
     private Date friendshipDate;
     
+    // 用于连接查询的扩展属性
+    private String friendName;
+    private String friendDepartment;
+    
     public Friendship() {
     }
     
-    public Friendship(String studentId1, String studentId2) {
-        // 确保studentId1 < studentId2，保持一致性
-        if (studentId1.compareTo(studentId2) < 0) {
-            this.studentId1 = studentId1;
-            this.studentId2 = studentId2;
-        } else {
-            this.studentId1 = studentId2;
-            this.studentId2 = studentId1;
-        }
-        this.friendshipDate = new Date();
+    public Friendship(String studentId1, String studentId2, Date friendshipDate) {
+        this.studentId1 = studentId1;
+        this.studentId2 = studentId2;
+        this.friendshipDate = friendshipDate;
     }
     
-    // Getters and Setters
     public String getStudentId1() {
         return studentId1;
     }
@@ -47,12 +47,30 @@ public class Friendship {
         this.friendshipDate = friendshipDate;
     }
     
+    public String getFriendName() {
+        return friendName;
+    }
+    
+    public void setFriendName(String friendName) {
+        this.friendName = friendName;
+    }
+    
+    public String getFriendDepartment() {
+        return friendDepartment;
+    }
+    
+    public void setFriendDepartment(String friendDepartment) {
+        this.friendDepartment = friendDepartment;
+    }
+    
     @Override
     public String toString() {
         return "Friendship{" +
                 "studentId1='" + studentId1 + '\'' +
                 ", studentId2='" + studentId2 + '\'' +
                 ", friendshipDate=" + friendshipDate +
+                ", friendName='" + friendName + '\'' +
+                ", friendDepartment='" + friendDepartment + '\'' +
                 '}';
     }
 } 

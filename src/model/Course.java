@@ -1,15 +1,20 @@
-package src.model;
+package model;
 
+import java.math.BigDecimal;
+
+/**
+ * 课程实体类
+ */
 public class Course {
     private String courseId;
     private String courseName;
     private String deptId;
-    private double credit;
+    private BigDecimal credit;
     
     public Course() {
     }
     
-    public Course(String courseId, String courseName, String deptId, double credit) {
+    public Course(String courseId, String courseName, String deptId, BigDecimal credit) {
         this.courseId = courseId;
         this.courseName = courseName;
         this.deptId = deptId;
@@ -41,11 +46,11 @@ public class Course {
         this.deptId = deptId;
     }
     
-    public double getCredit() {
+    public BigDecimal getCredit() {
         return credit;
     }
     
-    public void setCredit(double credit) {
+    public void setCredit(BigDecimal credit) {
         this.credit = credit;
     }
     

@@ -1,23 +1,32 @@
-package src.model;
+package model;
 
+import java.math.BigDecimal;
 import java.util.Date;
 
+/**
+ * 选课记录实体类
+ */
 public class Enrollment {
     private String studentId;
     private String courseId;
-    private Double grade;
+    private BigDecimal grade;
     private Date enrollmentDate;
+    
+    // 用于连接查询的扩展属性
+    private String courseName;
+    private BigDecimal credit;
+    private String deptName;
     
     public Enrollment() {
     }
     
-    public Enrollment(String studentId, String courseId) {
+    public Enrollment(String studentId, String courseId, BigDecimal grade, Date enrollmentDate) {
         this.studentId = studentId;
         this.courseId = courseId;
-        this.enrollmentDate = new Date();
+        this.grade = grade;
+        this.enrollmentDate = enrollmentDate;
     }
     
-    // Getters and Setters
     public String getStudentId() {
         return studentId;
     }
@@ -34,11 +43,11 @@ public class Enrollment {
         this.courseId = courseId;
     }
     
-    public Double getGrade() {
+    public BigDecimal getGrade() {
         return grade;
     }
     
-    public void setGrade(Double grade) {
+    public void setGrade(BigDecimal grade) {
         this.grade = grade;
     }
     
@@ -50,6 +59,30 @@ public class Enrollment {
         this.enrollmentDate = enrollmentDate;
     }
     
+    public String getCourseName() {
+        return courseName;
+    }
+    
+    public void setCourseName(String courseName) {
+        this.courseName = courseName;
+    }
+    
+    public BigDecimal getCredit() {
+        return credit;
+    }
+    
+    public void setCredit(BigDecimal credit) {
+        this.credit = credit;
+    }
+    
+    public String getDeptName() {
+        return deptName;
+    }
+    
+    public void setDeptName(String deptName) {
+        this.deptName = deptName;
+    }
+    
     @Override
     public String toString() {
         return "Enrollment{" +
@@ -57,6 +90,9 @@ public class Enrollment {
                 ", courseId='" + courseId + '\'' +
                 ", grade=" + grade +
                 ", enrollmentDate=" + enrollmentDate +
+                ", courseName='" + courseName + '\'' +
+                ", credit=" + credit +
+                ", deptName='" + deptName + '\'' +
                 '}';
     }
 } 

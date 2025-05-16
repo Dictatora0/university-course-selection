@@ -1,25 +1,33 @@
-package src.model;
+package model;
 
+import java.math.BigDecimal;
 import java.util.Date;
 
+/**
+ * 交易记录实体类
+ */
 public class Transaction {
     private Long transactionId;
     private String fromStudentId;
     private String toStudentId;
-    private Double amount;
+    private BigDecimal amount;
     private Date transactionTime;
+    
+    // 用于连接查询的扩展属性
+    private String fromStudentName;
+    private String toStudentName;
     
     public Transaction() {
     }
     
-    public Transaction(String fromStudentId, String toStudentId, Double amount) {
+    public Transaction(Long transactionId, String fromStudentId, String toStudentId, BigDecimal amount, Date transactionTime) {
+        this.transactionId = transactionId;
         this.fromStudentId = fromStudentId;
         this.toStudentId = toStudentId;
         this.amount = amount;
-        this.transactionTime = new Date();
+        this.transactionTime = transactionTime;
     }
     
-    // Getters and Setters
     public Long getTransactionId() {
         return transactionId;
     }
@@ -44,11 +52,11 @@ public class Transaction {
         this.toStudentId = toStudentId;
     }
     
-    public Double getAmount() {
+    public BigDecimal getAmount() {
         return amount;
     }
     
-    public void setAmount(Double amount) {
+    public void setAmount(BigDecimal amount) {
         this.amount = amount;
     }
     
@@ -60,6 +68,22 @@ public class Transaction {
         this.transactionTime = transactionTime;
     }
     
+    public String getFromStudentName() {
+        return fromStudentName;
+    }
+    
+    public void setFromStudentName(String fromStudentName) {
+        this.fromStudentName = fromStudentName;
+    }
+    
+    public String getToStudentName() {
+        return toStudentName;
+    }
+    
+    public void setToStudentName(String toStudentName) {
+        this.toStudentName = toStudentName;
+    }
+    
     @Override
     public String toString() {
         return "Transaction{" +
@@ -68,6 +92,8 @@ public class Transaction {
                 ", toStudentId='" + toStudentId + '\'' +
                 ", amount=" + amount +
                 ", transactionTime=" + transactionTime +
+                ", fromStudentName='" + fromStudentName + '\'' +
+                ", toStudentName='" + toStudentName + '\'' +
                 '}';
     }
 } 

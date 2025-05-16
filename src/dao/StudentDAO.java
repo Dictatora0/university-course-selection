@@ -1,100 +1,192 @@
-package src.dao;
+package dao;
 
-import src.model.Student;
-import src.util.DBUtil;
+import model.Student;
+import util.DBConnection;
 
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 学生数据访问对象，处理与Student表相关的数据库操作
+ */
 public class StudentDAO {
     
-    // 添加学生
-    public boolean addStudent(Student student) throws SQLException {
-        String sql = "INSERT INTO Student(student_id, name, birth_date, id_card, address, password) VALUES(?,?,?,?,?,?)";
-        try (Connection conn = DBUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, student.getStudentId());
-            pstmt.setString(2, student.getName());
-            pstmt.setDate(3, new java.sql.Date(student.getBirthDate().getTime()));
-            pstmt.setString(4, student.getIdCard());
-            pstmt.setString(5, student.getAddress());
-            pstmt.setString(6, student.getPassword());
-            return pstmt.executeUpdate() > 0;
-        }
-    }
-    
-    // 根据学号查询学生
-    public Student getStudentById(String studentId) throws SQLException {
-        String sql = "SELECT * FROM Student WHERE student_id = ?";
-        try (Connection conn = DBUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+    /**
+     * 通过学号查询学生
+     */
+    public Student findById(String studentId) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        Student student = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT * FROM Student WHERE student_id = ?";
+            pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, studentId);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapResultSetToStudent(rs);
-                }
+            rs = pstmt.executeQuery();
+            
+            if (rs.next()) {
+                student = mapResultSetToStudent(rs);
             }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
         }
-        return null;
+        
+        return student;
     }
     
-    // 验证学生登录
-    public Student validateLogin(String studentId, String password) throws SQLException {
-        String sql = "SELECT * FROM Student WHERE student_id = ? AND password = ?";
-        try (Connection conn = DBUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, studentId);
-            pstmt.setString(2, password);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapResultSetToStudent(rs);
-                }
-            }
-        }
-        return null;
-    }
-    
-    // 查询所有学生
-    public List<Student> getAllStudents() throws SQLException {
-        String sql = "SELECT * FROM Student";
+    /**
+     * 获取所有学生
+     */
+    public List<Student> findAll() {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
         List<Student> students = new ArrayList<>();
-        try (Connection conn = DBUtil.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT * FROM Student";
+            pstmt = conn.prepareStatement(sql);
+            rs = pstmt.executeQuery();
+            
             while (rs.next()) {
-                students.add(mapResultSetToStudent(rs));
+                Student student = mapResultSetToStudent(rs);
+                students.add(student);
             }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
         }
+        
         return students;
     }
     
-    // 更新学生信息
-    public boolean updateStudent(Student student) throws SQLException {
-        String sql = "UPDATE Student SET name = ?, birth_date = ?, id_card = ?, address = ?, password = ? WHERE student_id = ?";
-        try (Connection conn = DBUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+    /**
+     * 验证学生登录
+     */
+    public Student validateLogin(String studentId, String password) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        Student student = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT * FROM Student WHERE student_id = ? AND password = ?";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setString(1, studentId);
+            pstmt.setString(2, password);
+            rs = pstmt.executeQuery();
+            
+            if (rs.next()) {
+                student = mapResultSetToStudent(rs);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
+        }
+        
+        return student;
+    }
+    
+    /**
+     * 添加学生
+     */
+    public boolean add(Student student) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        boolean success = false;
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "INSERT INTO Student (student_id, name, birth_date, id_card, address, password) " +
+                    "VALUES (?, ?, ?, ?, ?, ?)";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setString(1, student.getStudentId());
+            pstmt.setString(2, student.getName());
+            pstmt.setDate(3, student.getBirthDate() != null ? new java.sql.Date(student.getBirthDate().getTime()) : null);
+            pstmt.setString(4, student.getIdCard());
+            pstmt.setString(5, student.getAddress());
+            pstmt.setString(6, student.getPassword());
+            
+            int rowsAffected = pstmt.executeUpdate();
+            success = rowsAffected > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, null);
+        }
+        
+        return success;
+    }
+    
+    /**
+     * 更新学生信息
+     */
+    public boolean update(Student student) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        boolean success = false;
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "UPDATE Student SET name = ?, birth_date = ?, id_card = ?, address = ?, password = ? " +
+                    "WHERE student_id = ?";
+            pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, student.getName());
-            pstmt.setDate(2, new java.sql.Date(student.getBirthDate().getTime()));
+            pstmt.setDate(2, student.getBirthDate() != null ? new java.sql.Date(student.getBirthDate().getTime()) : null);
             pstmt.setString(3, student.getIdCard());
             pstmt.setString(4, student.getAddress());
             pstmt.setString(5, student.getPassword());
             pstmt.setString(6, student.getStudentId());
-            return pstmt.executeUpdate() > 0;
+            
+            int rowsAffected = pstmt.executeUpdate();
+            success = rowsAffected > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, null);
         }
+        
+        return success;
     }
     
-    // 删除学生
-    public boolean deleteStudent(String studentId) throws SQLException {
-        String sql = "DELETE FROM Student WHERE student_id = ?";
-        try (Connection conn = DBUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+    /**
+     * 删除学生
+     */
+    public boolean delete(String studentId) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        boolean success = false;
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "DELETE FROM Student WHERE student_id = ?";
+            pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, studentId);
-            return pstmt.executeUpdate() > 0;
+            
+            int rowsAffected = pstmt.executeUpdate();
+            success = rowsAffected > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, null);
         }
+        
+        return success;
     }
     
-    // 将ResultSet映射为Student对象
+    /**
+     * 将ResultSet映射到Student对象
+     */
     private Student mapResultSetToStudent(ResultSet rs) throws SQLException {
         Student student = new Student();
         student.setStudentId(rs.getString("student_id"));
