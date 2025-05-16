@@ -1,0 +1,103 @@
+/* 全局样式 */
+body {
+    background-color: #f8f9fa;
+    font-family: 'Microsoft YaHei', Arial, sans-serif;
+}
+
+.card {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border: none;
+}
+
+.card-header {
+    background-color: #4a6baf;
+    color: white;
+    padding: 1rem;
+}
+
+/* 导航栏样式 */
+.navbar {
+    background-color: #4a6baf;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.nav-link {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.nav-link.active {
+    color: white !important;
+    font-weight: bold;
+}
+
+/* 主页面内容 */
+.tab-content {
+    padding: 20px 0;
+}
+
+/* 按钮样式 */
+.btn-primary {
+    background-color: #4a6baf;
+    border-color: #3f5c96;
+}
+
+.btn-primary:hover {
+    background-color: #3f5c96;
+    border-color: #34507d;
+}
+
+/* 表格样式 */
+.table th {
+    background-color: #f2f5fa;
+}
+
+/* 课程卡片 */
+.course-card {
+    transition: transform 0.2s;
+    margin-bottom: 20px;
+}
+
+.course-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 好友列表 */
+.friend-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s;
+}
+
+.friend-item:hover {
+    background-color: #f8f9fa;
+}
+
+/* 消息样式 */
+.message-sent, .message-received {
+    padding: 10px 15px;
+    border-radius: 20px;
+    margin-bottom: 10px;
+    max-width: 75%;
+}
+
+.message-sent {
+    background-color: #4a6baf;
+    color: white;
+    margin-left: auto;
+}
+
+.message-received {
+    background-color: #e9ecef;
+    margin-right: auto;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .card {
+        margin: 0 10px;
+    }
+} 
