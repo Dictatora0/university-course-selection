@@ -105,5 +105,66 @@ const API = {
         drop(courseId) {
             return API.request(`/api/enrollment/drop?courseId=${courseId}`);
         }
+    },
+    
+    // 支付API
+    payment: {
+        deposit(amount) {
+            return API.request('/api/payment/deposit', 'POST', { amount });
+        },
+        withdraw(amount) {
+            return API.request('/api/payment/withdraw', 'POST', { amount });
+        }
+    },
+    
+    // 交易API
+    transaction: {
+        list() {
+            return API.request('/api/transactions/list');
+        },
+        create(type, amount, description = '') {
+            return API.request('/api/transactions/create', 'POST', { type, amount, description });
+        }
+    },
+    
+    // 好友API
+    friendship: {
+        list() {
+            return API.request('/api/friendship/list');
+        },
+        add(friendId) {
+            return API.request('/api/friendship/add', 'POST', { friendId });
+        },
+        delete(friendId) {
+            return API.request(`/api/friendship/delete/${friendId}`, 'DELETE');
+        },
+        check(friendId) {
+            return API.request(`/api/friendship/check/${friendId}`);
+        },
+        count() {
+            return API.request('/api/friendship/count');
+        }
+    },
+    
+    // 消息API
+    message: {
+        send(receiverId, content) {
+            return API.request('/api/messages/send', 'POST', { receiverId, content });
+        },
+        unread() {
+            return API.request('/api/messages/unread');
+        },
+        unreadCount() {
+            return API.request('/api/messages/unread_count');
+        },
+        getConversation(friendId) {
+            return API.request(`/api/messages/conversation/${friendId}`);
+        },
+        markAsRead(messageId) {
+            return API.request(`/api/messages/read/${messageId}`, 'PUT');
+        },
+        delete(messageId) {
+            return API.request(`/api/messages/delete/${messageId}`, 'DELETE');
+        }
     }
 }; 

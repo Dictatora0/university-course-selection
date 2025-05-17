@@ -33,12 +33,13 @@ public class FriendshipServlet extends BaseServlet {
     private void handleGetFriends(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
         
-        if (session == null || session.getAttribute("studentId") == null) {
+        if (session == null || session.getAttribute("student") == null) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
-        String studentId = (String) session.getAttribute("studentId");
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
         List<Student> friends = friendshipDao.getFriendsWithDetails(studentId);
         
         ResponseUtil.sendSuccessResponse(resp, "获取好友列表成功", friends);
@@ -50,12 +51,13 @@ public class FriendshipServlet extends BaseServlet {
     private void handleAddFriend(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
         
-        if (session == null || session.getAttribute("studentId") == null) {
+        if (session == null || session.getAttribute("student") == null) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
-        String studentId = (String) session.getAttribute("studentId");
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
         JsonObject requestData = ResponseUtil.readRequestJson(req);
         
         if (requestData == null || !requestData.has("friendId") || requestData.get("friendId").isJsonNull() || requestData.get("friendId").getAsString().trim().isEmpty()) {
@@ -97,12 +99,13 @@ public class FriendshipServlet extends BaseServlet {
     private void handleDeleteFriend(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
         
-        if (session == null || session.getAttribute("studentId") == null) {
+        if (session == null || session.getAttribute("student") == null) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
-        String studentId = (String) session.getAttribute("studentId");
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
         String pathInfo = req.getPathInfo();
         
         if (pathInfo == null || pathInfo.trim().isEmpty()) {
@@ -140,12 +143,13 @@ public class FriendshipServlet extends BaseServlet {
     private void handleCheckFriendship(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
         
-        if (session == null || session.getAttribute("studentId") == null) {
+        if (session == null || session.getAttribute("student") == null) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
-        String studentId = (String) session.getAttribute("studentId");
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
         String pathInfo = req.getPathInfo();
 
         if (pathInfo == null || pathInfo.trim().isEmpty()) {
@@ -175,12 +179,13 @@ public class FriendshipServlet extends BaseServlet {
     private void handleGetFriendCount(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
         
-        if (session == null || session.getAttribute("studentId") == null) {
+        if (session == null || session.getAttribute("student") == null) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
-        String studentId = (String) session.getAttribute("studentId");
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
         int count = friendshipDao.getFriendCount(studentId);
         
         JsonObject result = new JsonObject();
@@ -193,13 +198,8 @@ public class FriendshipServlet extends BaseServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String pathInfo = req.getPathInfo();
         
-        if (pathInfo == null || pathInfo.trim().isEmpty()) { // pathInfo can be "/"
-             if ("/".equals(req.getServletPath()) || (pathInfo != null && pathInfo.equals("/"))) { 
-                // Consider /api/friendship/ as a request for list if not handled by specific path matching
-                 handleGetFriends(req, resp);
-                 return;
-             }
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的请求路径");
+        if (pathInfo == null || pathInfo.equals("/")) {
+            handleGetFriends(req, resp);
             return;
         }
         
@@ -234,7 +234,7 @@ public class FriendshipServlet extends BaseServlet {
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String pathInfo = req.getPathInfo();
         
-        if (pathInfo == null || pathInfo.trim().isEmpty()) {
+        if (pathInfo == null || pathInfo.equals("/")) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的请求路径");
             return;
         }

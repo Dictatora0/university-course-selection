@@ -17,20 +17,13 @@ public class FriendshipDAO {
      * 添加好友关系
      */
     public boolean add(String studentId1, String studentId2) {
-        // 确保studentId1 < studentId2，保持一致性
-        if (studentId1.compareTo(studentId2) > 0) {
-            String temp = studentId1;
-            studentId1 = studentId2;
-            studentId2 = temp;
-        }
-        
         Connection conn = null;
         PreparedStatement pstmt = null;
         boolean success = false;
         
         try {
             conn = DBConnection.getConnection();
-            String sql = "INSERT INTO Friendship (student_id1, student_id2) VALUES (?, ?)";
+            String sql = "INSERT INTO Friendship (student_id, friend_id) VALUES (?, ?)";
             pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, studentId1);
             pstmt.setString(2, studentId2);
@@ -50,23 +43,18 @@ public class FriendshipDAO {
      * 删除好友关系
      */
     public boolean delete(String studentId1, String studentId2) {
-        // 确保studentId1 < studentId2，保持一致性
-        if (studentId1.compareTo(studentId2) > 0) {
-            String temp = studentId1;
-            studentId1 = studentId2;
-            studentId2 = temp;
-        }
-        
         Connection conn = null;
         PreparedStatement pstmt = null;
         boolean success = false;
         
         try {
             conn = DBConnection.getConnection();
-            String sql = "DELETE FROM Friendship WHERE student_id1 = ? AND student_id2 = ?";
+            String sql = "DELETE FROM Friendship WHERE (student_id = ? AND friend_id = ?) OR (student_id = ? AND friend_id = ?)";
             pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, studentId1);
             pstmt.setString(2, studentId2);
+            pstmt.setString(3, studentId2);
+            pstmt.setString(4, studentId1);
             
             int rowsAffected = pstmt.executeUpdate();
             success = rowsAffected > 0;
@@ -83,13 +71,6 @@ public class FriendshipDAO {
      * 检查是否是好友关系
      */
     public boolean isFriend(String studentId1, String studentId2) {
-        // 确保studentId1 < studentId2，保持一致性
-        if (studentId1.compareTo(studentId2) > 0) {
-            String temp = studentId1;
-            studentId1 = studentId2;
-            studentId2 = temp;
-        }
-        
         Connection conn = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
@@ -97,10 +78,12 @@ public class FriendshipDAO {
         
         try {
             conn = DBConnection.getConnection();
-            String sql = "SELECT 1 FROM Friendship WHERE student_id1 = ? AND student_id2 = ?";
+            String sql = "SELECT 1 FROM Friendship WHERE (student_id = ? AND friend_id = ?) OR (student_id = ? AND friend_id = ?)";
             pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, studentId1);
             pstmt.setString(2, studentId2);
+            pstmt.setString(3, studentId2);
+            pstmt.setString(4, studentId1);
             rs = pstmt.executeQuery();
             
             isFriend = rs.next();
@@ -125,11 +108,11 @@ public class FriendshipDAO {
         try {
             conn = DBConnection.getConnection();
             String sql = "SELECT f.*, s.name as friend_name, d.dept_name FROM Friendship f " +
-                    "JOIN Student s ON (f.student_id1 = ? AND f.student_id2 = s.student_id) " +
-                    "OR (f.student_id2 = ? AND f.student_id1 = s.student_id) " +
+                    "JOIN Student s ON (f.student_id = ? AND f.friend_id = s.student_id) " +
+                    "OR (f.friend_id = ? AND f.student_id = s.student_id) " +
                     "LEFT JOIN Course c ON c.course_id IN (SELECT course_id FROM Enrollment WHERE student_id = s.student_id) " +
                     "LEFT JOIN Department d ON c.dept_id = d.dept_id " +
-                    "GROUP BY f.student_id1, f.student_id2, f.friendship_date, s.name, d.dept_name";
+                    "GROUP BY f.student_id, f.friend_id, f.created_at, s.name, d.dept_name";
             pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, studentId);
             pstmt.setString(2, studentId);
@@ -137,12 +120,12 @@ public class FriendshipDAO {
             
             while (rs.next()) {
                 Friendship friendship = new Friendship();
-                friendship.setStudentId1(rs.getString("student_id1"));
-                friendship.setStudentId2(rs.getString("student_id2"));
-                friendship.setFriendshipDate(rs.getTimestamp("friendship_date"));
+                friendship.setStudentId1(rs.getString("student_id"));
+                friendship.setStudentId2(rs.getString("friend_id"));
+                friendship.setFriendshipDate(rs.getTimestamp("created_at"));
                 
                 // 设置好友ID和姓名
-                if (studentId.equals(rs.getString("student_id1"))) {
+                if (studentId.equals(rs.getString("student_id"))) {
                     friendship.setFriendName(rs.getString("friend_name"));
                     friendship.setFriendDepartment(rs.getString("dept_name"));
                 } else {
@@ -167,8 +150,8 @@ public class FriendshipDAO {
     public List<Student> getFriendsWithDetails(String studentId) {
         List<Student> friends = new ArrayList<>();
         String sql = "SELECT s.* FROM Student s JOIN Friendship f ON " +
-                     "(s.student_id = f.student_id2 AND f.student_id1 = ?) OR " +
-                     "(s.student_id = f.student_id1 AND f.student_id2 = ?) " +
+                     "(s.student_id = f.friend_id AND f.student_id = ?) OR " +
+                     "(s.student_id = f.student_id AND f.friend_id = ?) " +
                      "WHERE s.student_id != ?"; // 确保不把自己列为好友（尽管好友关系表设计上应该避免这种情况）
 
         try (Connection conn = DBConnection.getConnection();
@@ -201,7 +184,7 @@ public class FriendshipDAO {
      * 获取好友数量
      */
     public int getFriendCount(String studentId) {
-        String sql = "SELECT COUNT(*) FROM Friendship WHERE student_id1 = ? OR student_id2 = ?";
+        String sql = "SELECT COUNT(*) FROM Friendship WHERE student_id = ? OR friend_id = ?";
         int count = 0;
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -233,8 +216,8 @@ public class FriendshipDAO {
                     "JOIN Enrollment e1 ON s.student_id = e1.student_id " +
                     "JOIN Enrollment e2 ON e1.course_id = e2.course_id AND e2.student_id = ? " +
                     "WHERE s.student_id != ? AND s.student_id NOT IN " +
-                    "(SELECT student_id1 FROM Friendship WHERE student_id2 = ? " +
-                    "UNION SELECT student_id2 FROM Friendship WHERE student_id1 = ?) " +
+                    "(SELECT friend_id FROM Friendship WHERE student_id = ? " +
+                    "UNION SELECT student_id FROM Friendship WHERE friend_id = ?) " +
                     "GROUP BY s.student_id " +
                     "ORDER BY common_courses DESC " +
                     "LIMIT ?";

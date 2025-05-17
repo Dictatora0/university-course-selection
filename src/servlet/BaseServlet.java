@@ -33,6 +33,18 @@ public abstract class BaseServlet extends HttpServlet {
         // 获取请求路径中的方法名
         String requestURI = req.getRequestURI();
         System.out.println("[BaseServlet] 收到请求: " + requestURI);
+        
+        // 检查是否是特殊的路径模式，如/check/{id}或/conversation/{id}
+        // 这些请求应该由各自的doGet, doPost等方法处理
+        if (requestURI.contains("/check/") || 
+            requestURI.contains("/conversation/") || 
+            requestURI.contains("/read/") || 
+            requestURI.contains("/delete/")) {
+            System.out.println("[BaseServlet] 特殊路径请求，转发到对应的HTTP方法处理");
+            super.service(req, resp);
+            return;
+        }
+        
         String methodName = requestURI.substring(requestURI.lastIndexOf("/") + 1);
         System.out.println("[BaseServlet] 调用方法: " + methodName);
         

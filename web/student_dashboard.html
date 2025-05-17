@@ -5,6 +5,178 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>学生主页 - 在线选课系统</title>
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .balance-info {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .balance-amount {
+            font-size: 24px;
+            color: #2ecc71;
+            font-weight: bold;
+        }
+        
+        .payment-buttons {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .payment-form {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .friend-list {
+            margin-top: 20px;
+        }
+        
+        .friend-item {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .friend-info {
+            display: flex;
+            align-items: center;
+        }
+        
+        .friend-avatar {
+            width: 40px;
+            height: 40px;
+            background-color: #3498db;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        
+        .friend-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-message {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        .btn-message:hover {
+            background-color: #2980b9;
+        }
+        
+        .btn-delete-friend {
+            background-color: #e74c3c;
+            color: white;
+        }
+        
+        .btn-delete-friend:hover {
+            background-color: #c0392b;
+        }
+        
+        .search-friend-form {
+            display: flex;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
+        
+        .search-friend-form input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .transaction-item {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 10px;
+        }
+        
+        .transaction-item .amount {
+            font-weight: bold;
+        }
+        
+        .transaction-item .amount.deposit {
+            color: #2ecc71;
+        }
+        
+        .transaction-item .amount.withdraw {
+            color: #e74c3c;
+        }
+        
+        .transaction-date {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        
+        .message-container {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+        }
+        
+        .message {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+        
+        .message-sent {
+            background-color: #3498db;
+            color: white;
+            margin-left: auto;
+        }
+        
+        .message-received {
+            background-color: #ecf0f1;
+            color: #2c3e50;
+        }
+        
+        .message-form {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .message-form textarea {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: none;
+        }
+        
+        .message-form button {
+            padding: 10px 15px;
+        }
+        
+        .chat-container {
+            display: none;
+        }
+    </style>
 </head>
 <body>
     <header class="dashboard-header">
@@ -20,6 +192,8 @@
             <ul>
                 <li><a href="#" class="active" data-tab="courses">可选课程</a></li>
                 <li><a href="#" data-tab="my-courses">我的课程</a></li>
+                <li><a href="#" data-tab="payment">我的钱包</a></li>
+                <li><a href="#" data-tab="friends">我的好友</a></li>
                 <li><a href="#" data-tab="profile">个人信息</a></li>
             </ul>
         </nav>
@@ -71,6 +245,77 @@
                         </tr>
                     </tbody>
                 </table>
+            </section>
+            
+            <!-- 我的钱包 -->
+            <section id="payment" class="tab-content">
+                <h2>我的钱包</h2>
+                
+                <div class="balance-info">
+                    <h3>账户余额</h3>
+                    <div class="balance-amount" id="balanceAmount">¥ 0.00</div>
+                    
+                    <div class="payment-buttons">
+                        <button id="depositBtn" class="btn-enroll">充值</button>
+                        <button id="withdrawBtn" class="btn-drop">提现</button>
+                    </div>
+                </div>
+                
+                <!-- 充值表单 -->
+                <div id="depositForm" class="payment-form">
+                    <h3>充值金额</h3>
+                    <div class="form-group">
+                        <input type="number" id="depositAmount" min="1" step="0.01" placeholder="请输入充值金额">
+                    </div>
+                    <div class="payment-buttons">
+                        <button id="confirmDepositBtn" class="btn-enroll">确认充值</button>
+                        <button id="cancelDepositBtn" class="btn-drop">取消</button>
+                    </div>
+                </div>
+                
+                <!-- 提现表单 -->
+                <div id="withdrawForm" class="payment-form">
+                    <h3>提现金额</h3>
+                    <div class="form-group">
+                        <input type="number" id="withdrawAmount" min="1" step="0.01" placeholder="请输入提现金额">
+                    </div>
+                    <div class="payment-buttons">
+                        <button id="confirmWithdrawBtn" class="btn-enroll">确认提现</button>
+                        <button id="cancelWithdrawBtn" class="btn-drop">取消</button>
+                    </div>
+                </div>
+                
+                <h3 style="margin-top: 30px">交易记录</h3>
+                <div id="transactionList" class="transaction-list">
+                    <p class="loading">加载中...</p>
+                </div>
+            </section>
+            
+            <!-- 我的好友 -->
+            <section id="friends" class="tab-content">
+                <h2>我的好友</h2>
+                
+                <div class="search-friend-form">
+                    <input type="text" id="friendIdInput" placeholder="请输入学号添加好友">
+                    <button id="addFriendBtn" class="btn-enroll">添加好友</button>
+                </div>
+                
+                <div id="friendList" class="friend-list">
+                    <p class="loading">加载中...</p>
+                </div>
+                
+                <!-- 聊天界面 -->
+                <div id="chatContainer" class="chat-container">
+                    <h3 id="chatTitle">与 <span id="chatFriendName"></span> 的聊天</h3>
+                    <div id="messageContainer" class="message-container">
+                        <!-- 消息内容会通过JS动态添加 -->
+                    </div>
+                    <div class="message-form">
+                        <textarea id="messageInput" placeholder="请输入消息"></textarea>
+                        <button id="sendMessageBtn" class="btn-enroll">发送</button>
+                        <button id="closeChatBtn" class="btn-drop">关闭</button>
+                    </div>
+                </div>
             </section>
             
             <!-- 个人信息 -->
@@ -134,6 +379,14 @@
                     // 添加active类到当前选中项
                     this.classList.add('active');
                     document.getElementById(tabId).classList.add('active');
+                    
+                    // 根据不同标签页执行不同的加载操作
+                    if (tabId === 'payment') {
+                        loadBalance();
+                        loadTransactions();
+                    } else if (tabId === 'friends') {
+                        loadFriends();
+                    }
                 });
             });
             
@@ -146,6 +399,12 @@
                     alert('退出失败: ' + error.message);
                 }
             });
+            
+            // 支付相关事件
+            setupPaymentEvents();
+            
+            // 好友相关事件
+            setupFriendEvents();
         });
         
         // 检查登录状态
@@ -308,6 +567,299 @@
                 console.error('获取已选课程失败:', error);
                 document.getElementById('myCoursesList').innerHTML = 
                     `<tr><td colspan="6" class="error">获取已选课程失败: ${error.message}</td></tr>`;
+            }
+        }
+        
+        // 支付相关事件设置
+        function setupPaymentEvents() {
+            // 充值按钮
+            document.getElementById('depositBtn').addEventListener('click', function() {
+                document.getElementById('depositForm').style.display = 'block';
+                document.getElementById('withdrawForm').style.display = 'none';
+            });
+            
+            // 提现按钮
+            document.getElementById('withdrawBtn').addEventListener('click', function() {
+                document.getElementById('withdrawForm').style.display = 'block';
+                document.getElementById('depositForm').style.display = 'none';
+            });
+            
+            // 取消充值
+            document.getElementById('cancelDepositBtn').addEventListener('click', function() {
+                document.getElementById('depositForm').style.display = 'none';
+                document.getElementById('depositAmount').value = '';
+            });
+            
+            // 取消提现
+            document.getElementById('cancelWithdrawBtn').addEventListener('click', function() {
+                document.getElementById('withdrawForm').style.display = 'none';
+                document.getElementById('withdrawAmount').value = '';
+            });
+            
+            // 确认充值
+            document.getElementById('confirmDepositBtn').addEventListener('click', async function() {
+                const amount = document.getElementById('depositAmount').value;
+                if (!amount || amount <= 0) {
+                    alert('请输入有效金额');
+                    return;
+                }
+                
+                try {
+                    await API.payment.deposit(amount);
+                    alert('充值成功');
+                    document.getElementById('depositForm').style.display = 'none';
+                    document.getElementById('depositAmount').value = '';
+                    
+                    // 刷新余额和交易记录
+                    loadBalance();
+                    loadTransactions();
+                } catch (error) {
+                    alert('充值失败: ' + error.message);
+                }
+            });
+            
+            // 确认提现
+            document.getElementById('confirmWithdrawBtn').addEventListener('click', async function() {
+                const amount = document.getElementById('withdrawAmount').value;
+                if (!amount || amount <= 0) {
+                    alert('请输入有效金额');
+                    return;
+                }
+                
+                try {
+                    await API.payment.withdraw(amount);
+                    alert('提现成功');
+                    document.getElementById('withdrawForm').style.display = 'none';
+                    document.getElementById('withdrawAmount').value = '';
+                    
+                    // 刷新余额和交易记录
+                    loadBalance();
+                    loadTransactions();
+                } catch (error) {
+                    alert('提现失败: ' + error.message);
+                }
+            });
+        }
+        
+        // 加载余额
+        async function loadBalance() {
+            try {
+                const student = await API.student.getInfo();
+                document.getElementById('balanceAmount').textContent = `¥ ${student.balance.toFixed(2)}`;
+            } catch (error) {
+                console.error('获取余额失败:', error);
+                document.getElementById('balanceAmount').textContent = '获取失败';
+            }
+        }
+        
+        // 加载交易记录
+        async function loadTransactions() {
+            try {
+                const transactions = await API.transaction.list();
+                const transactionList = document.getElementById('transactionList');
+                
+                if (!transactions || transactions.length === 0) {
+                    transactionList.innerHTML = '<p>暂无交易记录</p>';
+                    return;
+                }
+                
+                let html = '';
+                transactions.forEach(transaction => {
+                    const isPositive = transaction.type === 'DEPOSIT' || transaction.type === 'REFUND';
+                    const amountClass = isPositive ? 'deposit' : 'withdraw';
+                    const amountText = isPositive ? `+${transaction.amount}` : transaction.amount;
+                    const date = new Date(transaction.transactionDate);
+                    
+                    let typeText = '';
+                    switch(transaction.type) {
+                        case 'DEPOSIT': typeText = '充值'; break;
+                        case 'WITHDRAW': typeText = '提现'; break;
+                        case 'PAYMENT': typeText = '支付'; break;
+                        case 'REFUND': typeText = '退款'; break;
+                        case 'TRANSFER': typeText = '转账'; break;
+                        case 'EXPENSE': typeText = '支出'; break;
+                        default: typeText = transaction.type;
+                    }
+                    
+                    html += `
+                    <div class="transaction-item">
+                        <div>
+                            <span class="transaction-type">${typeText}</span>
+                            <span class="amount ${amountClass}">${amountText}</span>
+                        </div>
+                        <div class="transaction-description">${transaction.description || '无描述'}</div>
+                        <div class="transaction-date">${date.toLocaleString()}</div>
+                    </div>`;
+                });
+                
+                transactionList.innerHTML = html;
+            } catch (error) {
+                console.error('获取交易记录失败:', error);
+                document.getElementById('transactionList').innerHTML = 
+                    `<p class="error">获取交易记录失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 好友相关事件设置
+        function setupFriendEvents() {
+            // 添加好友
+            document.getElementById('addFriendBtn').addEventListener('click', async function() {
+                const friendId = document.getElementById('friendIdInput').value.trim();
+                if (!friendId) {
+                    alert('请输入好友学号');
+                    return;
+                }
+                
+                try {
+                    await API.friendship.add(friendId);
+                    alert('添加好友成功');
+                    document.getElementById('friendIdInput').value = '';
+                    
+                    // 刷新好友列表
+                    loadFriends();
+                } catch (error) {
+                    alert('添加好友失败: ' + error.message);
+                }
+            });
+            
+            // 发送消息
+            document.getElementById('sendMessageBtn').addEventListener('click', async function() {
+                const messageContent = document.getElementById('messageInput').value.trim();
+                const receiverId = document.getElementById('chatContainer').dataset.friendId;
+                
+                if (!messageContent) {
+                    alert('请输入消息内容');
+                    return;
+                }
+                
+                try {
+                    await API.message.send(receiverId, messageContent);
+                    document.getElementById('messageInput').value = '';
+                    
+                    // 刷新聊天记录
+                    loadChatMessages(receiverId);
+                } catch (error) {
+                    alert('发送消息失败: ' + error.message);
+                }
+            });
+            
+            // 关闭聊天
+            document.getElementById('closeChatBtn').addEventListener('click', function() {
+                document.getElementById('chatContainer').style.display = 'none';
+            });
+        }
+        
+        // 加载好友列表
+        async function loadFriends() {
+            try {
+                const friends = await API.friendship.list();
+                const friendList = document.getElementById('friendList');
+                
+                if (!friends || friends.length === 0) {
+                    friendList.innerHTML = '<p>您还没有好友，使用上方搜索栏添加好友吧</p>';
+                    return;
+                }
+                
+                let html = '';
+                friends.forEach(friend => {
+                    const avatar = friend.name ? friend.name.charAt(0).toUpperCase() : '?';
+                    
+                    html += `
+                    <div class="friend-item">
+                        <div class="friend-info">
+                            <div class="friend-avatar">${avatar}</div>
+                            <div>
+                                <div>${friend.name}</div>
+                                <div>${friend.studentId}</div>
+                            </div>
+                        </div>
+                        <div class="friend-actions">
+                            <button class="btn-message" data-friend-id="${friend.studentId}" data-friend-name="${friend.name}">发送消息</button>
+                            <button class="btn-delete-friend" data-friend-id="${friend.studentId}">删除好友</button>
+                        </div>
+                    </div>`;
+                });
+                
+                friendList.innerHTML = html;
+                
+                // 添加发送消息事件
+                friendList.querySelectorAll('.btn-message').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const friendId = this.dataset.friendId;
+                        const friendName = this.dataset.friendName;
+                        openChatWithFriend(friendId, friendName);
+                    });
+                });
+                
+                // 添加删除好友事件
+                friendList.querySelectorAll('.btn-delete-friend').forEach(btn => {
+                    btn.addEventListener('click', async function() {
+                        if (confirm('确定要删除此好友吗?')) {
+                            const friendId = this.dataset.friendId;
+                            try {
+                                await API.friendship.delete(friendId);
+                                alert('删除好友成功');
+                                loadFriends();
+                            } catch (error) {
+                                alert('删除好友失败: ' + error.message);
+                            }
+                        }
+                    });
+                });
+            } catch (error) {
+                console.error('获取好友列表失败:', error);
+                document.getElementById('friendList').innerHTML = 
+                    `<p class="error">获取好友列表失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 打开与好友的聊天
+        async function openChatWithFriend(friendId, friendName) {
+            const chatContainer = document.getElementById('chatContainer');
+            const chatFriendName = document.getElementById('chatFriendName');
+            
+            chatContainer.style.display = 'block';
+            chatContainer.dataset.friendId = friendId;
+            chatFriendName.textContent = friendName;
+            
+            // 加载聊天记录
+            loadChatMessages(friendId);
+        }
+        
+        // 加载聊天记录
+        async function loadChatMessages(friendId) {
+            try {
+                const messages = await API.message.getConversation(friendId);
+                const messageContainer = document.getElementById('messageContainer');
+                
+                if (!messages || messages.length === 0) {
+                    messageContainer.innerHTML = '<p class="text-center">暂无聊天记录</p>';
+                    return;
+                }
+                
+                let html = '';
+                messages.forEach(message => {
+                    const isFromMe = message.fromStudentId === document.getElementById('profileStudentId').textContent;
+                    const messageClass = isFromMe ? 'message-sent' : 'message-received';
+                    const date = new Date(message.sendTime);
+                    
+                    html += `
+                    <div class="message ${messageClass}">
+                        <div>${message.content}</div>
+                        <div class="message-time" style="font-size: 12px; opacity: 0.7; text-align: right;">
+                            ${date.toLocaleString()}
+                        </div>
+                    </div>`;
+                });
+                
+                messageContainer.innerHTML = html;
+                
+                // 滚动到底部
+                messageContainer.scrollTop = messageContainer.scrollHeight;
+            } catch (error) {
+                console.error('获取聊天记录失败:', error);
+                document.getElementById('messageContainer').innerHTML = 
+                    `<p class="error">获取聊天记录失败: ${error.message}</p>`;
             }
         }
         

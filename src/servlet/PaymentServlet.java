@@ -1,5 +1,7 @@
 package servlet;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import dao.StudentDAO;
 import dao.TransactionDAO;
 import model.Student;
@@ -12,6 +14,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.SQLException;
@@ -26,6 +29,7 @@ public class PaymentServlet extends HttpServlet {
     private static final Logger logger = Logger.getLogger(PaymentServlet.class.getName());
     private StudentDAO studentDAO = new StudentDAO();
     private TransactionDAO transactionDAO = new TransactionDAO();
+    private Gson gson = new Gson();
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -35,24 +39,35 @@ public class PaymentServlet extends HttpServlet {
         }
         
         HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("studentId") == null) {
+        if (session == null || session.getAttribute("student") == null) {
             ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
             return;
         }
 
-        String studentId = (String) session.getAttribute("studentId");
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
         
         try {
+            // 从请求体中读取JSON数据
+            BufferedReader reader = request.getReader();
+            StringBuilder requestData = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                requestData.append(line);
+            }
+            
+            // 解析JSON数据
+            JsonObject jsonData = gson.fromJson(requestData.toString(), JsonObject.class);
+            
             // 获取金额并验证
-            String amountStr = request.getParameter("amount");
-            if (amountStr == null || amountStr.isEmpty()) {
+            if (jsonData == null || !jsonData.has("amount")) {
                 ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "金额不能为空");
                 return;
             }
             
             BigDecimal amount;
             try {
-                amount = new BigDecimal(amountStr);
+                amount = jsonData.get("amount").getAsBigDecimal();
                 if (amount.compareTo(BigDecimal.ZERO) <= 0) {
                     ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "金额必须大于0");
                     return;
@@ -65,24 +80,24 @@ public class PaymentServlet extends HttpServlet {
             // 根据路径处理不同操作
             switch (pathInfo) {
                 case "/deposit":
-                    handleDeposit(studentId, amount, response);
+                    handleDeposit(studentId, amount, response, request);
                     break;
                 case "/withdraw":
-                    handleWithdraw(studentId, amount, response);
+                    handleWithdraw(studentId, amount, response, request);
                     break;
                 default:
                     ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "不支持的操作: " + pathInfo);
             }
         } catch (Exception e) {
             logger.log(Level.SEVERE, "处理支付操作时发生错误", e);
-            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务器内部错误");
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务器内部错误: " + e.getMessage());
         }
     }
 
     /**
      * 处理充值操作
      */
-    private void handleDeposit(String studentId, BigDecimal amount, HttpServletResponse response) throws IOException, SQLException {
+    private void handleDeposit(String studentId, BigDecimal amount, HttpServletResponse response, HttpServletRequest request) throws IOException, SQLException {
         // 获取学生信息
         Student student = studentDAO.findById(studentId);
         if (student == null) {
@@ -103,6 +118,10 @@ public class PaymentServlet extends HttpServlet {
             
             transactionDAO.add(transaction);
             
+            // 更新session中的学生对象
+            student.setBalance(newBalance);
+            request.getSession().setAttribute("student", student);
+            
             // 返回成功信息
             ResponseUtil.sendSuccessResponse(response, "充值成功，已添加 " + amount + " 元到账户");
         } else {
@@ -113,7 +132,7 @@ public class PaymentServlet extends HttpServlet {
     /**
      * 处理提现操作
      */
-    private void handleWithdraw(String studentId, BigDecimal amount, HttpServletResponse response) throws IOException, SQLException {
+    private void handleWithdraw(String studentId, BigDecimal amount, HttpServletResponse response, HttpServletRequest request) throws IOException, SQLException {
         // 获取学生信息
         Student student = studentDAO.findById(studentId);
         if (student == null) {
@@ -139,6 +158,10 @@ public class PaymentServlet extends HttpServlet {
             transaction.setDescription("账户提现");
             
             transactionDAO.add(transaction);
+            
+            // 更新session中的学生对象
+            student.setBalance(newBalance);
+            request.getSession().setAttribute("student", student);
             
             // 返回成功信息
             ResponseUtil.sendSuccessResponse(response, "提现成功，已从账户扣除 " + amount + " 元");

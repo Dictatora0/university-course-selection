@@ -36,11 +36,12 @@ public class TransactionServlet extends BaseServlet {
      */
     private void handleCreateTransaction(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("studentId") == null) {
+        if (session == null || session.getAttribute("student") == null) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录");
             return;
         }
-        String studentId = (String) session.getAttribute("studentId");
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
         JsonObject requestData = ResponseUtil.readRequestJson(req);
         
         if (requestData == null) {
@@ -119,11 +120,12 @@ public class TransactionServlet extends BaseServlet {
 
     private void handleGetStudentTransactions(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("studentId") == null) {
+        if (session == null || session.getAttribute("student") == null) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
-        String studentId = (String) session.getAttribute("studentId");
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
         List<Transaction> transactions = transactionDAO.findByStudentId(studentId);
         ResponseUtil.sendSuccessResponse(resp, "获取交易记录成功", transactions);
     }

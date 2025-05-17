@@ -34,67 +34,105 @@ public class MessageServlet extends BaseServlet {
      * 处理发送消息请求
      */
     private void handleSendMessage(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        // 验证用户是否已登录
-        HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("studentId") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
-            return;
-        }
-        
-        String senderId = (String) session.getAttribute("studentId");
-        JsonObject requestData = ResponseUtil.readRequestJson(req);
-        
-        if (requestData == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的请求数据");
-            return;
-        }
-        
-        // 验证接收者ID和消息内容
-        String receiverId = requestData.has("receiverId") ? requestData.get("receiverId").getAsString().trim() : null;
-        String content = requestData.has("content") ? requestData.get("content").getAsString().trim() : null;
-        
-        if (receiverId == null || receiverId.isEmpty()) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "接收者ID不能为空");
-            return;
-        }
-        if (content == null || content.isEmpty()) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "消息内容不能为空");
-            return;
-        }
-        
-        // 不能给自己发消息
-        if (senderId.equals(receiverId)) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "不能给自己发送消息");
-            return;
-        }
-        
-        // 验证接收者是否存在
-        Student receiver = studentDao.findById(receiverId);
-        if (receiver == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "接收者不存在");
-            return;
-        }
-        
-        // 验证是否为好友关系
-        if (!friendshipDao.isFriend(senderId, receiverId)) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "只能向好友发送消息");
-            return;
-        }
-        
-        // 发送消息
-        Message message = new Message();
-        message.setFromStudentId(senderId);
-        message.setToStudentId(receiverId);
-        message.setContent(content);
-        
-        boolean success = messageDao.add(message);
-        
-        if (success) {
-            LOGGER.log(Level.INFO, "消息发送成功: {0} -> {1}", new Object[]{senderId, receiverId});
-            ResponseUtil.sendSuccessResponse(resp, "消息发送成功");
-        } else {
-            LOGGER.log(Level.WARNING, "消息发送失败: {0} -> {1}", new Object[]{senderId, receiverId});
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "消息发送失败，请稍后再试");
+        try {
+            // 验证用户是否已登录
+            HttpSession session = req.getSession(false);
+            if (session == null || session.getAttribute("student") == null) {
+                LOGGER.warning("发送消息失败：用户未登录");
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
+                return;
+            }
+            
+            Student sessionStudent = (Student) session.getAttribute("student");
+            String senderId = sessionStudent.getStudentId();
+            LOGGER.info("尝试读取请求JSON数据");
+            JsonObject requestData = ResponseUtil.readRequestJson(req);
+            
+            if (requestData == null) {
+                LOGGER.warning("发送消息失败：请求数据为空");
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的请求数据");
+                return;
+            }
+            
+            // 验证接收者ID和消息内容
+            String receiverId = null;
+            String content = null;
+            
+            try {
+                if (requestData.has("receiverId")) {
+                    receiverId = requestData.get("receiverId").getAsString().trim();
+                }
+                if (requestData.has("content")) {
+                    content = requestData.get("content").getAsString().trim();
+                }
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "解析JSON字段时出错: " + e.getMessage(), e);
+            }
+            
+            if (receiverId == null || receiverId.isEmpty()) {
+                LOGGER.warning("发送消息失败：接收者ID为空");
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "接收者ID不能为空");
+                return;
+            }
+            if (content == null || content.isEmpty()) {
+                LOGGER.warning("发送消息失败：消息内容为空");
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "消息内容不能为空");
+                return;
+            }
+            
+            // 记录发送的消息内容长度和内容
+            LOGGER.info("准备发送消息，内容长度: " + content.length() + ", 内容前10个字符: " + 
+                    (content.length() > 10 ? content.substring(0, 10) + "..." : content));
+            
+            // 不能给自己发消息
+            if (senderId.equals(receiverId)) {
+                LOGGER.warning("发送消息失败：用户尝试给自己发消息");
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "不能给自己发送消息");
+                return;
+            }
+            
+            // 验证接收者是否存在
+            Student receiver = studentDao.findById(receiverId);
+            if (receiver == null) {
+                LOGGER.warning("发送消息失败：接收者ID不存在：" + receiverId);
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "接收者不存在");
+                return;
+            }
+            
+            // 验证发送者和接收者是否是好友关系
+            if (!friendshipDao.isFriend(senderId, receiverId)) {
+                LOGGER.warning("发送消息失败：用户" + senderId + "与" + receiverId + "不是好友关系");
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "只能向好友发送消息");
+                return;
+            }
+            
+            // 发送消息
+            Message message = new Message();
+            message.setFromStudentId(senderId);
+            message.setToStudentId(receiverId);
+            
+            // 确保消息内容不超过数据库字段长度限制（假设为4000字符）
+            if (content.length() > 4000) {
+                content = content.substring(0, 4000);
+                LOGGER.warning("消息内容过长，已截断至4000字符");
+            }
+            
+            message.setContent(content);
+            message.setRead(false);
+            
+            LOGGER.info("开始添加消息到数据库");
+            boolean success = messageDao.add(message);
+            
+            if (success) {
+                LOGGER.log(Level.INFO, "消息发送成功: {0} -> {1}", new Object[]{senderId, receiverId});
+                ResponseUtil.sendSuccessResponse(resp, "消息发送成功");
+            } else {
+                LOGGER.log(Level.WARNING, "消息发送失败: {0} -> {1}", new Object[]{senderId, receiverId});
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "消息发送失败，请稍后再试");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "处理发送消息请求时发生错误: " + e.getMessage(), e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务器内部错误: " + e.getMessage());
         }
     }
     
@@ -104,12 +142,13 @@ public class MessageServlet extends BaseServlet {
     private void handleGetConversation(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         // 验证用户是否已登录
         HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("studentId") == null) {
+        if (session == null || session.getAttribute("student") == null) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
-        String currentUserId = (String) session.getAttribute("studentId");
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String currentUserId = sessionStudent.getStudentId();
         String pathInfo = req.getPathInfo();
         
         // 路径格式应该是 /conversation/{friendId}
@@ -128,7 +167,7 @@ public class MessageServlet extends BaseServlet {
             return;
         }
         
-        // 验证是否为好友关系
+        // 验证是否是好友关系
         if (!friendshipDao.isFriend(currentUserId, friendId)) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "只能查看与好友的对话");
             return;
@@ -153,12 +192,13 @@ public class MessageServlet extends BaseServlet {
     private void handleGetUnreadMessages(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         // 验证用户是否已登录
         HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("studentId") == null) {
+        if (session == null || session.getAttribute("student") == null) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
-        String studentId = (String) session.getAttribute("studentId");
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
         
         // 获取未读消息
         List<Message> messages = messageDao.findUnreadMessages(studentId);
@@ -182,12 +222,13 @@ public class MessageServlet extends BaseServlet {
     private void handleGetUnreadMessageCount(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         // 验证用户是否已登录
         HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("studentId") == null) {
+        if (session == null || session.getAttribute("student") == null) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
-        String studentId = (String) session.getAttribute("studentId");
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
         int count = messageDao.getUnreadMessageCount(studentId);
         
         JsonObject result = new JsonObject();
@@ -202,12 +243,13 @@ public class MessageServlet extends BaseServlet {
     private void handleMarkMessageAsRead(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         // 验证用户是否已登录
         HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("studentId") == null) {
+        if (session == null || session.getAttribute("student") == null) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
-        String studentId = (String) session.getAttribute("studentId");
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
         String pathInfo = req.getPathInfo();
         
         // 路径格式应该是 /read/{messageId}
@@ -237,12 +279,13 @@ public class MessageServlet extends BaseServlet {
     private void handleDeleteMessage(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         // 验证用户是否已登录
         HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("studentId") == null) {
+        if (session == null || session.getAttribute("student") == null) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
             return;
         }
         
-        String studentId = (String) session.getAttribute("studentId");
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
         String pathInfo = req.getPathInfo();
         
         // 路径格式应该是 /delete/{messageId}
@@ -295,13 +338,8 @@ public class MessageServlet extends BaseServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String pathInfo = req.getPathInfo();
         
-        if (pathInfo == null || pathInfo.trim().isEmpty()) {
-            if ("/".equals(req.getServletPath()) || (pathInfo !=null && pathInfo.equals("/"))) {
-                // Default to unread messages or provide a help/status message
-                handleGetUnreadMessages(req, resp);
-                return;
-            }
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的请求路径");
+        if (pathInfo == null || pathInfo.equals("/")) {
+            handleGetUnreadMessages(req, resp);
             return;
         }
         
@@ -309,7 +347,7 @@ public class MessageServlet extends BaseServlet {
             handleGetConversation(req, resp);
         } else if (pathInfo.equals("/unread")) {
             handleGetUnreadMessages(req, resp);
-        } else if (pathInfo.equals("/unread/count")) {
+        } else if (pathInfo.equals("/unread_count")) {
             handleGetUnreadMessageCount(req, resp);
         } else {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "未找到请求的资源: GET " + pathInfo);
@@ -335,7 +373,7 @@ public class MessageServlet extends BaseServlet {
     @Override
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String pathInfo = req.getPathInfo();
-        if (pathInfo == null || pathInfo.trim().isEmpty()) {
+        if (pathInfo == null || pathInfo.equals("/")) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的请求路径");
             return;
         }
@@ -351,7 +389,7 @@ public class MessageServlet extends BaseServlet {
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String pathInfo = req.getPathInfo();
         
-        if (pathInfo == null || pathInfo.trim().isEmpty()) {
+        if (pathInfo == null || pathInfo.equals("/")) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的请求路径");
             return;
         }
