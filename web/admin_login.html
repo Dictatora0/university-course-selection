@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员登录 - 课程选择系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            background-color: #f4f7f6;
+            font-family: 'Microsoft YaHei', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        
+        .login-container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            width: 380px;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .login-header {
+            margin-bottom: 30px;
+        }
+        
+        .login-header h1 {
+            color: #2c3e50;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .login-header p {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #34495e;
+            font-size: 14px;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-control:focus {
+            border-color: #409eff;
+            outline: none;
+        }
+        
+        .btn-primary {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 12px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary:hover {
+            background-color: #45a049;
+        }
+        
+        .login-footer {
+            margin-top: 30px;
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+        
+        .login-footer a {
+            color: #409eff;
+            text-decoration: none;
+        }
+        
+        .login-footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .error-message {
+            color: #e74c3c;
+            font-size: 14px;
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>管理员登录</h1>
+            <p>请输入您的管理员账号和密码</p>
+        </div>
+        
+        <form id="adminLoginForm">
+            <div class="form-group">
+                <label for="adminId">管理员ID</label>
+                <input type="text" class="form-control" id="adminId" placeholder="请输入管理员ID" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" class="form-control" id="password" placeholder="请输入密码" required>
+            </div>
+            
+            <button type="submit" class="btn-primary">登录</button>
+            
+            <div id="errorMessage" class="error-message"></div>
+        </form>
+        
+        <div class="login-footer">
+            <a href="index.html">返回学生登录</a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const adminLoginForm = document.getElementById('adminLoginForm');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // 检查是否已登录
+            checkLoginStatus();
+            
+            adminLoginForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const adminId = document.getElementById('adminId').value.trim();
+                const password = document.getElementById('password').value;
+                
+                if (!adminId || !password) {
+                    showError('请输入管理员ID和密码');
+                    return;
+                }
+                
+                // 发送登录请求
+                fetch('/course-selection/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        adminId: adminId,
+                        password: password
+                    }),
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 登录成功，跳转到管理员仪表盘
+                        window.location.href = 'admin_dashboard.html';
+                    } else {
+                        // 登录失败，显示错误信息
+                        showError(data.message || '登录失败，请检查管理员ID和密码');
+                    }
+                })
+                .catch(error => {
+                    console.error('登录请求失败:', error);
+                    showError('网络错误，请稍后重试');
+                });
+            });
+            
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+            }
+            
+            function checkLoginStatus() {
+                fetch('/course-selection/api/admin', {
+                    method: 'GET',
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 已登录，跳转到管理员仪表盘
+                        window.location.href = 'admin_dashboard.html';
+                    }
+                })
+                .catch(error => {
+                    console.error('检查登录状态失败:', error);
+                    // 忽略错误，继续显示登录页面
+                });
+            }
+        });
+    </script>
+</body>
+</html> 

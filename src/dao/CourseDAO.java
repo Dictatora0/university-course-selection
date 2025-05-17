@@ -191,4 +191,140 @@ public class CourseDAO {
         
         return success;
     }
+    
+    /**
+     * 获取课程总数
+     * @return 课程总数
+     */
+    public int getTotalCourseCount() {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        int count = 0;
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT COUNT(*) AS total FROM Course";
+            pstmt = conn.prepareStatement(sql);
+            rs = pstmt.executeQuery();
+            
+            if (rs.next()) {
+                count = rs.getInt("total");
+            }
+        } catch (SQLException e) {
+            System.err.println("[CourseDAO.getTotalCourseCount] SQLException: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
+        }
+        
+        return count;
+    }
+    
+    /**
+     * 获取各院系的课程数量分布
+     * @return 包含院系ID、院系名称和课程数量的列表
+     */
+    public List<Object[]> getCoursesCountByDepartment() {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        List<Object[]> distribution = new ArrayList<>();
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT d.dept_id, d.dept_name, COUNT(c.course_id) AS course_count " +
+                     "FROM Department d " +
+                     "LEFT JOIN Course c ON d.dept_id = c.dept_id " +
+                     "GROUP BY d.dept_id, d.dept_name " +
+                     "ORDER BY course_count DESC";
+            pstmt = conn.prepareStatement(sql);
+            rs = pstmt.executeQuery();
+            
+            while (rs.next()) {
+                String deptId = rs.getString("dept_id");
+                String deptName = rs.getString("dept_name");
+                int courseCount = rs.getInt("course_count");
+                distribution.add(new Object[]{deptId, deptName, courseCount});
+            }
+        } catch (SQLException e) {
+            System.err.println("[CourseDAO.getCoursesCountByDepartment] SQLException: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
+        }
+        
+        return distribution;
+    }
+    
+    /**
+     * 获取课程平均学分
+     * @return 所有课程的平均学分
+     */
+    public BigDecimal getAverageCourseCredit() {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        BigDecimal avgCredit = BigDecimal.ZERO;
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT AVG(credit) AS avg_credit FROM Course";
+            pstmt = conn.prepareStatement(sql);
+            rs = pstmt.executeQuery();
+            
+            if (rs.next()) {
+                avgCredit = rs.getBigDecimal("avg_credit");
+                if (avgCredit == null) {
+                    avgCredit = BigDecimal.ZERO;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[CourseDAO.getAverageCourseCredit] SQLException: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
+        }
+        
+        return avgCredit;
+    }
+    
+    /**
+     * 获取选课人数最多的课程
+     * @param limit 返回的课程数量
+     * @return 包含课程信息和选课人数的列表
+     */
+    public List<Object[]> getMostPopularCourses(int limit) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        List<Object[]> popularCourses = new ArrayList<>();
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT c.course_id, c.course_name, COUNT(e.student_id) AS enrollment_count " +
+                     "FROM Course c " +
+                     "LEFT JOIN Enrollment e ON c.course_id = e.course_id " +
+                     "GROUP BY c.course_id, c.course_name " +
+                     "ORDER BY enrollment_count DESC " +
+                     "LIMIT ?";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setInt(1, limit);
+            rs = pstmt.executeQuery();
+            
+            while (rs.next()) {
+                String courseId = rs.getString("course_id");
+                String courseName = rs.getString("course_name");
+                int enrollmentCount = rs.getInt("enrollment_count");
+                popularCourses.add(new Object[]{courseId, courseName, enrollmentCount});
+            }
+        } catch (SQLException e) {
+            System.err.println("[CourseDAO.getMostPopularCourses] SQLException: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
+        }
+        
+        return popularCourses;
+    }
 } 

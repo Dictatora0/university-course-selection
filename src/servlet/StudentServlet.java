@@ -24,7 +24,7 @@ import model.Student;
 import util.PasswordUtil;
 import util.ResponseUtil;
 
-@WebServlet("/api/student/*")
+@WebServlet("/api/students/*")
 public class StudentServlet extends BaseServlet {
     
     private StudentDAO studentDAO = new StudentDAO();

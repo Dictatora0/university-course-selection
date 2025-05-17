@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dao.FriendshipDAO;
 import dao.StudentDAO;
+import model.Friendship;
 import model.Student;
 import util.ResponseUtil;
 
@@ -82,14 +83,131 @@ public class FriendshipServlet extends BaseServlet {
             return;
         }
         
-        boolean success = friendshipDao.add(studentId, friendId);
+        boolean success = friendshipDao.sendFriendRequest(studentId, friendId);
         
         if (success) {
-            LOGGER.log(Level.INFO, "添加好友成功: {0} -> {1}", new Object[]{studentId, friendId});
-            ResponseUtil.sendSuccessResponse(resp, "添加好友成功");
+            LOGGER.log(Level.INFO, "发送好友请求成功: {0} -> {1}", new Object[]{studentId, friendId});
+            ResponseUtil.sendSuccessResponse(resp, "好友请求已发送，等待对方确认");
         } else {
-            LOGGER.log(Level.WARNING, "添加好友失败: {0} -> {1}", new Object[]{studentId, friendId});
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "添加好友失败，请稍后再试");
+            LOGGER.log(Level.WARNING, "发送好友请求失败: {0} -> {1}", new Object[]{studentId, friendId});
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "发送好友请求失败，请稍后再试");
+        }
+    }
+    
+    /**
+     * 处理搜索学生请求
+     */
+    private void handleSearchStudents(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        HttpSession session = req.getSession(false);
+        
+        if (session == null || session.getAttribute("student") == null) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
+            return;
+        }
+        
+        String keyword = req.getParameter("keyword");
+        if (keyword == null || keyword.trim().isEmpty()) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "搜索关键词不能为空");
+            return;
+        }
+        
+        List<Student> students = friendshipDao.searchStudents(keyword.trim());
+        ResponseUtil.sendSuccessResponse(resp, "搜索学生成功", students);
+    }
+    
+    /**
+     * 处理获取好友请求列表
+     */
+    private void handleGetFriendRequests(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        HttpSession session = req.getSession(false);
+        
+        if (session == null || session.getAttribute("student") == null) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
+            return;
+        }
+        
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
+        
+        List<Friendship> requests = friendshipDao.getFriendRequests(studentId);
+        ResponseUtil.sendSuccessResponse(resp, "获取好友请求列表成功", requests);
+    }
+    
+    /**
+     * 处理接受好友请求
+     */
+    private void handleAcceptFriendRequest(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        HttpSession session = req.getSession(false);
+        
+        if (session == null || session.getAttribute("student") == null) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
+            return;
+        }
+        
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
+        
+        String pathInfo = req.getPathInfo();
+        if (pathInfo == null || pathInfo.trim().isEmpty()) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的请求路径");
+            return;
+        }
+        
+        String[] pathParts = pathInfo.split("/");
+        if (pathParts.length < 3 || pathParts[2].trim().isEmpty()) { // parts[0] is empty, parts[1] is "accept"
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "请求者ID未提供或无效的请求路径");
+            return;
+        }
+        
+        String requesterId = pathParts[2];
+        
+        boolean success = friendshipDao.acceptFriendRequest(studentId, requesterId);
+        
+        if (success) {
+            LOGGER.log(Level.INFO, "接受好友请求成功: {0} <- {1}", new Object[]{studentId, requesterId});
+            ResponseUtil.sendSuccessResponse(resp, "已接受好友请求");
+        } else {
+            LOGGER.log(Level.WARNING, "接受好友请求失败: {0} <- {1}", new Object[]{studentId, requesterId});
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "接受好友请求失败，请稍后再试");
+        }
+    }
+    
+    /**
+     * 处理拒绝好友请求
+     */
+    private void handleRejectFriendRequest(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        HttpSession session = req.getSession(false);
+        
+        if (session == null || session.getAttribute("student") == null) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
+            return;
+        }
+        
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
+        
+        String pathInfo = req.getPathInfo();
+        if (pathInfo == null || pathInfo.trim().isEmpty()) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的请求路径");
+            return;
+        }
+        
+        String[] pathParts = pathInfo.split("/");
+        if (pathParts.length < 3 || pathParts[2].trim().isEmpty()) { // parts[0] is empty, parts[1] is "reject"
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "请求者ID未提供或无效的请求路径");
+            return;
+        }
+        
+        String requesterId = pathParts[2];
+        
+        boolean success = friendshipDao.rejectFriendRequest(studentId, requesterId);
+        
+        if (success) {
+            LOGGER.log(Level.INFO, "拒绝好友请求成功: {0} <- {1}", new Object[]{studentId, requesterId});
+            ResponseUtil.sendSuccessResponse(resp, "已拒绝好友请求");
+        } else {
+            LOGGER.log(Level.WARNING, "拒绝好友请求失败: {0} <- {1}", new Object[]{studentId, requesterId});
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "拒绝好友请求失败，请稍后再试");
         }
     }
     
@@ -209,6 +327,10 @@ public class FriendshipServlet extends BaseServlet {
             handleCheckFriendship(req, resp);
         } else if (pathInfo.equals("/count")) {
             handleGetFriendCount(req, resp);
+        } else if (pathInfo.equals("/requests")) {
+            handleGetFriendRequests(req, resp);
+        } else if (pathInfo.startsWith("/search")) {
+            handleSearchStudents(req, resp);
         } else {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "未找到请求的资源: GET " + pathInfo);
         }
@@ -225,6 +347,10 @@ public class FriendshipServlet extends BaseServlet {
         
         if (pathInfo.equals("/add")) {
             handleAddFriend(req, resp);
+        } else if (pathInfo.startsWith("/accept/")) {
+            handleAcceptFriendRequest(req, resp);
+        } else if (pathInfo.startsWith("/reject/")) {
+            handleRejectFriendRequest(req, resp);
         } else {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "未找到请求的资源: POST " + pathInfo);
         }
@@ -279,5 +405,33 @@ public class FriendshipServlet extends BaseServlet {
      */
     public void count(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         handleGetFriendCount(req, resp);
+    }
+    
+    /**
+     * 获取好友请求（供BaseServlet反射调用）
+     */
+    public void requests(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        handleGetFriendRequests(req, resp);
+    }
+    
+    /**
+     * 搜索学生（供BaseServlet反射调用）
+     */
+    public void search(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        handleSearchStudents(req, resp);
+    }
+    
+    /**
+     * 接受好友请求（供BaseServlet反射调用）
+     */
+    public void accept(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        handleAcceptFriendRequest(req, resp);
+    }
+    
+    /**
+     * 拒绝好友请求（供BaseServlet反射调用）
+     */
+    public void reject(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        handleRejectFriendRequest(req, resp);
     }
 } 

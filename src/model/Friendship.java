@@ -1,26 +1,32 @@
 package model;
 
-import java.util.Date;
+import java.sql.Timestamp;
 
 /**
- * 好友关系实体类
+ * 好友关系模型类
  */
 public class Friendship {
     private String studentId1;
     private String studentId2;
-    private Date friendshipDate;
-    
-    // 用于连接查询的扩展属性
+    private Timestamp friendshipDate;
     private String friendName;
     private String friendDepartment;
+    // 添加好友状态
+    private FriendshipStatus status;
+    // 添加请求发送时间
+    private Timestamp requestTime;
+    // 添加请求确认时间
+    private Timestamp confirmTime;
     
-    public Friendship() {
+    // 定义好友关系状态枚举
+    public enum FriendshipStatus {
+        PENDING, // 等待确认
+        ACCEPTED, // 已接受
+        REJECTED, // 已拒绝
+        BLOCKED // 已屏蔽
     }
     
-    public Friendship(String studentId1, String studentId2, Date friendshipDate) {
-        this.studentId1 = studentId1;
-        this.studentId2 = studentId2;
-        this.friendshipDate = friendshipDate;
+    public Friendship() {
     }
     
     public String getStudentId1() {
@@ -39,11 +45,11 @@ public class Friendship {
         this.studentId2 = studentId2;
     }
     
-    public Date getFriendshipDate() {
+    public Timestamp getFriendshipDate() {
         return friendshipDate;
     }
     
-    public void setFriendshipDate(Date friendshipDate) {
+    public void setFriendshipDate(Timestamp friendshipDate) {
         this.friendshipDate = friendshipDate;
     }
     
@@ -63,6 +69,30 @@ public class Friendship {
         this.friendDepartment = friendDepartment;
     }
     
+    public FriendshipStatus getStatus() {
+        return status;
+    }
+    
+    public void setStatus(FriendshipStatus status) {
+        this.status = status;
+    }
+    
+    public Timestamp getRequestTime() {
+        return requestTime;
+    }
+    
+    public void setRequestTime(Timestamp requestTime) {
+        this.requestTime = requestTime;
+    }
+    
+    public Timestamp getConfirmTime() {
+        return confirmTime;
+    }
+    
+    public void setConfirmTime(Timestamp confirmTime) {
+        this.confirmTime = confirmTime;
+    }
+    
     @Override
     public String toString() {
         return "Friendship{" +
@@ -71,6 +101,9 @@ public class Friendship {
                 ", friendshipDate=" + friendshipDate +
                 ", friendName='" + friendName + '\'' +
                 ", friendDepartment='" + friendDepartment + '\'' +
+                ", status=" + status +
+                ", requestTime=" + requestTime +
+                ", confirmTime=" + confirmTime +
                 '}';
     }
 } 

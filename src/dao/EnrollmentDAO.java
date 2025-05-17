@@ -233,4 +233,150 @@ public class EnrollmentDAO {
         
         return enrolled;
     }
+    
+    /**
+     * 获取选课总数
+     * @return 选课记录总数
+     */
+    public int getTotalEnrollmentCount() {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        int count = 0;
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT COUNT(*) AS total FROM Enrollment";
+            pstmt = conn.prepareStatement(sql);
+            rs = pstmt.executeQuery();
+            
+            if (rs.next()) {
+                count = rs.getInt("total");
+            }
+        } catch (SQLException e) {
+            System.err.println("[EnrollmentDAO.getTotalEnrollmentCount] SQLException: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
+        }
+        
+        return count;
+    }
+    
+    /**
+     * 获取每日选课数量统计
+     * @param days 最近的天数
+     * @return 包含日期和选课数量的列表
+     */
+    public List<Object[]> getDailyEnrollmentStats(int days) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        List<Object[]> stats = new ArrayList<>();
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT DATE(enrollment_date) AS day, COUNT(*) AS count " +
+                     "FROM Enrollment " +
+                     "WHERE enrollment_date >= DATE_SUB(CURRENT_DATE(), INTERVAL ? DAY) " +
+                     "GROUP BY DATE(enrollment_date) " +
+                     "ORDER BY day";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setInt(1, days);
+            rs = pstmt.executeQuery();
+            
+            while (rs.next()) {
+                Date day = rs.getDate("day");
+                int count = rs.getInt("count");
+                stats.add(new Object[]{day, count});
+            }
+        } catch (SQLException e) {
+            System.err.println("[EnrollmentDAO.getDailyEnrollmentStats] SQLException: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
+        }
+        
+        return stats;
+    }
+    
+    /**
+     * 获取课程的平均分数
+     * @return 包含课程ID、课程名称和平均分数的列表
+     */
+    public List<Object[]> getAverageGradesByCourse() {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        List<Object[]> averageGrades = new ArrayList<>();
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT c.course_id, c.course_name, AVG(e.grade) AS avg_grade " +
+                     "FROM Course c " +
+                     "LEFT JOIN Enrollment e ON c.course_id = e.course_id " +
+                     "WHERE e.grade IS NOT NULL " +
+                     "GROUP BY c.course_id, c.course_name " +
+                     "ORDER BY avg_grade DESC";
+            pstmt = conn.prepareStatement(sql);
+            rs = pstmt.executeQuery();
+            
+            while (rs.next()) {
+                String courseId = rs.getString("course_id");
+                String courseName = rs.getString("course_name");
+                BigDecimal avgGrade = rs.getBigDecimal("avg_grade");
+                averageGrades.add(new Object[]{courseId, courseName, avgGrade});
+            }
+        } catch (SQLException e) {
+            System.err.println("[EnrollmentDAO.getAverageGradesByCourse] SQLException: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
+        }
+        
+        return averageGrades;
+    }
+    
+    /**
+     * 获取成绩分布统计
+     * @return 包含成绩范围和对应学生数量的列表
+     */
+    public List<Object[]> getGradeDistribution() {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        List<Object[]> distribution = new ArrayList<>();
+        
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT " +
+                     "  CASE " +
+                     "    WHEN grade >= 90 THEN 'A (90-100)' " +
+                     "    WHEN grade >= 80 THEN 'B (80-89)' " +
+                     "    WHEN grade >= 70 THEN 'C (70-79)' " +
+                     "    WHEN grade >= 60 THEN 'D (60-69)' " +
+                     "    ELSE 'F (0-59)' " +
+                     "  END AS grade_range, " +
+                     "  COUNT(*) AS count " +
+                     "FROM Enrollment " +
+                     "WHERE grade IS NOT NULL " +
+                     "GROUP BY grade_range " +
+                     "ORDER BY MIN(grade) DESC";
+            pstmt = conn.prepareStatement(sql);
+            rs = pstmt.executeQuery();
+            
+            while (rs.next()) {
+                String gradeRange = rs.getString("grade_range");
+                int count = rs.getInt("count");
+                distribution.add(new Object[]{gradeRange, count});
+            }
+        } catch (SQLException e) {
+            System.err.println("[EnrollmentDAO.getGradeDistribution] SQLException: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
+        }
+        
+        return distribution;
+    }
 } 

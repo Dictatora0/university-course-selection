@@ -216,4 +216,39 @@ public class LoginLogDao {
         log.setStudentName(rs.getString("student_name"));
         return log;
     }
+    
+    /**
+     * 获取指定天数内活跃的学生数量
+     * @param days 天数
+     * @return 活跃学生数量
+     */
+    public int getActiveStudentsCount(int days) {
+        String sql = "SELECT COUNT(DISTINCT student_id) FROM LoginLog " +
+                    "WHERE login_time >= DATE_SUB(CURRENT_DATE(), INTERVAL ? DAY)";
+        
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, days);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+            
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "获取活跃学生数量失败", e);
+        }
+        
+        return 0;
+    }
+    
+    /**
+     * 获取今日活跃的学生数量
+     * @return 今日活跃学生数量
+     */
+    public int getTodayActiveStudentsCount() {
+        return getActiveStudentsCount(1);
+    }
 } 

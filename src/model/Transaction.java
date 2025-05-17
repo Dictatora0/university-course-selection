@@ -1,8 +1,11 @@
 package model;
 
 import java.math.BigDecimal;
-import java.util.Date;
+import java.sql.Timestamp;
 
+/**
+ * 交易记录实体类
+ */
 public class Transaction {
 
     public enum TransactionType {
@@ -14,13 +17,14 @@ public class Transaction {
         EXPENSE     // 其他支出
     }
 
-    private Long transactionId;
+    private String transactionId;     // 将transactionId从Long改为String
     private String studentId;          // 该交易主要关联的学生ID
     private TransactionType type;      // 交易类型
     private BigDecimal amount;         // 交易金额 (对于转出/支付可以为负，或始终为正，由类型决定)
-    private Date transactionDate;    // 交易发生时间 (DAO中设置)
+    private Timestamp transactionDate;    // 交易发生时间 (DAO中设置)
     private String description;        // 交易描述
     private String relatedStudentId;   // 关联的另一方学生ID (例如转账目标，或支付对象)
+    private String relatedUserId; // 关联用户ID，用于转账等场景
     // 状态字段，例如 PENDING, COMPLETED, FAILED, CANCELLED
     // public enum TransactionStatus { PENDING, COMPLETED, FAILED, CANCELLED }
     // private TransactionStatus status;
@@ -30,16 +34,16 @@ public class Transaction {
     private String relatedStudentName; // relatedStudentId 对应的姓名
 
     public Transaction() {
-        this.transactionDate = new Date(); // Default to now, DAO can override
+        this.transactionDate = new Timestamp(System.currentTimeMillis()); // Default to now, DAO can override
     }
 
     // --- Getters and Setters ---
 
-    public Long getTransactionId() {
+    public String getTransactionId() {
         return transactionId;
     }
 
-    public void setTransactionId(Long transactionId) {
+    public void setTransactionId(String transactionId) {
         this.transactionId = transactionId;
     }
 
@@ -67,11 +71,11 @@ public class Transaction {
         this.amount = amount;
     }
 
-    public Date getTransactionDate() {
+    public Timestamp getTransactionDate() {
         return transactionDate;
     }
 
-    public void setTransactionDate(Date transactionDate) {
+    public void setTransactionDate(Timestamp transactionDate) {
         this.transactionDate = transactionDate;
     }
 
@@ -89,6 +93,14 @@ public class Transaction {
 
     public void setRelatedStudentId(String relatedStudentId) {
         this.relatedStudentId = relatedStudentId;
+    }
+
+    public String getRelatedUserId() {
+        return relatedUserId;
+    }
+
+    public void setRelatedUserId(String relatedUserId) {
+        this.relatedUserId = relatedUserId;
     }
 
     public String getStudentName() {
@@ -117,6 +129,7 @@ public class Transaction {
                 ", transactionDate=" + transactionDate +
                 ", description='" + description + '\'' +
                 ", relatedStudentId='" + relatedStudentId + '\'' +
+                ", relatedUserId='" + relatedUserId + '\'' +
                 // ", status=" + status +
                 ", studentName='" + studentName + '\'' +
                 ", relatedStudentName='" + relatedStudentName + '\'' +

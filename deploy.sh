@@ -23,6 +23,21 @@ HTTP_PORT_RANGE_END=8100
 SHUTDOWN_PORT_RANGE_START=8001
 SHUTDOWN_PORT_RANGE_END=8050
 
+# 解析命令行参数
+USER_HTTP_PORT=""
+USER_SHUTDOWN_PORT=""
+ACTION="redeploy" # 默认操作
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --http-port) USER_HTTP_PORT="$2"; shift ;;
+        --shutdown-port) USER_SHUTDOWN_PORT="$2"; shift ;;
+        redeploy|kill|start|stop|build|clean) ACTION="$1" ;;
+        *) echo "未知参数: $1"; exit 1 ;;
+    esac
+    shift
+done
+
 # 改进：更详细地显示被占用端口的情况
 show_port_usage() {
     local PORT=$1
@@ -41,6 +56,16 @@ show_port_usage() {
 
 # 改进：查找可用端口对 (HTTP端口和Shutdown端口)
 find_available_port_pair() {
+    # 如果用户指定了端口，则优先使用
+    if [ -n "$USER_HTTP_PORT" ] && [ -n "$USER_SHUTDOWN_PORT" ]; then
+        if ! lsof -i tcp:$USER_HTTP_PORT > /dev/null && ! lsof -i tcp:$USER_SHUTDOWN_PORT > /dev/null; then
+            echo "$USER_HTTP_PORT:$USER_SHUTDOWN_PORT"
+            return 0
+        else
+            yellow "警告: 用户指定的端口 $USER_HTTP_PORT 或 $USER_SHUTDOWN_PORT 已被占用，将尝试自动查找。"
+        fi
+    fi
+
     for ((http_port=HTTP_PORT_RANGE_START; http_port<=HTTP_PORT_RANGE_END; http_port++)); do
         if ! lsof -i tcp:$http_port > /dev/null; then
             # 默认的shutdown端口偏移
@@ -119,8 +144,16 @@ kill_all_tomcat_processes() {
     # 先尝试使用shutdown脚本正常关闭
     if [ -f "$TOMCAT_HOME/bin/shutdown.sh" ]; then
         yellow "尝试使用shutdown.sh优雅关闭Tomcat..."
-        $TOMCAT_HOME/bin/shutdown.sh >/dev/null 2>&1
-        sleep 3
+        # 获取当前运行的shutdown端口
+        CURRENT_SHUTDOWN_PORT=$(grep '<Server port="' "$TOMCAT_HOME/conf/server.xml" | sed -n 's/.*<Server port="\\([0-9]*\\)".*/\\1/p')
+        if [ -n "$CURRENT_SHUTDOWN_PORT" ]; then
+            # 构造关闭命令并执行
+            "$TOMCAT_HOME/bin/shutdown.sh" -config "$TOMCAT_HOME/conf/server.xml" -port "$CURRENT_SHUTDOWN_PORT" >/dev/null 2>&1
+            sleep 3
+        else
+             "$TOMCAT_HOME/bin/shutdown.sh" >/dev/null 2>&1 # 尝试默认关闭
+            sleep 3
+        fi
     fi
     
     # 杀死所有明确标记为tomcat的Java进程
@@ -176,11 +209,19 @@ set_tomcat_ports() {
     
     yellow "正在修改Tomcat配置..."
     # 修改HTTP连接器端口
-    sed -i '' "s/Connector port=\"[0-9]\+\" protocol=\"HTTP\/1.1\"/Connector port=\"$HTTP_PORT\" protocol=\"HTTP\/1.1\"/" "$SERVER_XML"
+    sed -i.bak "s/Connector port=\"[0-9][0-9]*\" protocol=\"HTTP\/1.1\"/Connector port=\"$HTTP_PORT\" protocol=\"HTTP\/1.1\"/g" "$SERVER_XML"
     # 修改shutdown端口
-    sed -i '' "s/Server port=\"[0-9]\+\" shutdown/Server port=\"$SHUTDOWN_PORT\" shutdown/" "$SERVER_XML"
+    sed -i.bak "s/Server port=\"[0-9][0-9]*\" shutdown/Server port=\"$SHUTDOWN_PORT\" shutdown/g" "$SERVER_XML"
     
-    green "已设置Tomcat HTTP端口为 $HTTP_PORT，shutdown端口为 $SHUTDOWN_PORT"
+    # 验证修改是否成功
+    if grep "Connector port=\"$HTTP_PORT\"" "$SERVER_XML" > /dev/null && grep "Server port=\"$SHUTDOWN_PORT\"" "$SERVER_XML" > /dev/null; then
+        green "已设置Tomcat HTTP端口为 $HTTP_PORT，shutdown端口为 $SHUTDOWN_PORT"
+    else
+        red "错误: 修改Tomcat端口配置失败。请检查 $SERVER_XML 文件。"
+        # 简单的恢复方式，实际场景可能需要更完善的备份恢复机制
+        # cp "$SERVER_XML.bak" "$SERVER_XML"
+        exit 1
+    fi
 }
 
 # 改进：最后确认端口是否可用
@@ -208,7 +249,7 @@ check_tomcat_running() {
     
     yellow "等待Tomcat在端口 $PORT 上启动并部署 $CONTEXT_PATH..."
     for ((i=1; i<=MAX_RETRIES; i++)); do
-        if curl -s "$URL" > /dev/null 2>&1; then
+        if curl -s --connect-timeout 2 "$URL" > /dev/null 2>&1; then
             green "Tomcat成功启动，应用 $CONTEXT_PATH 已部署 (尝试 $i/$MAX_RETRIES)"
             return 0
         fi
@@ -237,126 +278,210 @@ echo ""
 # 检查Java环境
 yellow "检查Java环境..."
 if type -p java > /dev/null; then
-    JAVA_VERSION=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
+    JAVA_VERSION=$(java -version 2>&1 | awk -F '\\"' '/version/ {print $2}')
     green "Java已安装，版本: $JAVA_VERSION"
 else
     red "Java未安装，请安装JDK 8或更高版本"
     exit 1
 fi
 
-# 清空类文件
+# 根据ACTION执行不同操作
+case $ACTION in
+    clean)
+        yellow "清理旧的编译文件和WAR包..."
+        rm -rf classes/*
+        rm -rf web/WEB-INF/classes/*
+        rm -rf web/WEB-INF/lib/*
+        rm -f "$APP_NAME.war"
+        rm -f ".port_config"
+        green "清理完成。"
+        exit 0
+        ;;
+    build)
+        # 清理旧的编译文件
+        yellow "清理旧的编译文件..."
+        rm -rf classes/*
+        rm -rf web/WEB-INF/classes/*
+        mkdir -p classes
+        mkdir -p web/WEB-INF/classes
+        mkdir -p web/WEB-INF/lib
+
+        # 复制资源文件
+        yellow "复制资源文件到classes目录..."
+        cp src/resources/course.csv web/WEB-INF/classes/ 2>/dev/null && green "已复制 course.csv 到 web/WEB-INF/classes/" || yellow "警告: course.csv 未找到或复制失败"
+        cp src/resources/config.properties web/WEB-INF/classes/ 2>/dev/null && green "已复制 config.properties 到 web/WEB-INF/classes/" || yellow "警告: config.properties 未找到或复制失败"
+
+        # 编译Java代码
+        yellow "编译Java代码..."
+        JAVAC_COMMAND="javac -Xlint:all -cp src:web/WEB-INF/lib/*:lib/* -d classes src/dao/*.java src/model/*.java src/servlet/*.java src/util/*.java"
+        echo "执行编译命令: $JAVAC_COMMAND"
+        if $JAVAC_COMMAND; then
+            green "Java代码编译成功"
+            cp -r classes/* web/WEB-INF/classes/
+            green "已将编译后的类文件复制到web/WEB-INF/classes/"
+        else
+            red "Java代码编译失败，请检查错误信息。"
+            exit 1
+        fi
+
+        # 复制库文件
+        yellow "复制库文件到WEB-INF/lib目录..."
+        cp lib/*.jar web/WEB-INF/lib/ 2>/dev/null && green "已复制库文件" || yellow "警告: lib目录为空或复制失败"
+        
+        # 创建WAR文件
+        yellow "创建WAR文件..."
+        cd web || exit
+        if jar -cvf "../$APP_NAME.war" *; then
+            green "WAR文件创建成功: ../$APP_NAME.war"
+        else
+            red "WAR文件创建失败。"
+            cd ..
+            exit 1
+        fi
+        cd ..
+        green "构建完成。"
+        exit 0
+        ;;
+    kill)
+        kill_all_tomcat_processes
+        exit 0
+        ;;
+    start)
+        # 启动Tomcat的逻辑，可以考虑从redeploy中抽取
+        echo "启动Tomcat..."
+        # ...
+        ;;
+    stop)
+        # 停止Tomcat的逻辑，可以考虑从redeploy中抽取
+        echo "停止Tomcat..."
+        # ...
+        ;;
+esac
+
+# --- 以下是 redeploy 的主要逻辑 ---
+
+# 清理旧的编译文件
 yellow "清理旧的编译文件..."
 rm -rf classes/*
 rm -rf web/WEB-INF/classes/*
-rm -rf web/WEB-INF/lib/*
-
-# 创建目录结构
-yellow "创建必要的目录结构..."
 mkdir -p classes
 mkdir -p web/WEB-INF/classes
 mkdir -p web/WEB-INF/lib
 
-# 复制资源文件
 yellow "复制资源文件到classes目录..."
-[ -f "course.csv" ] && cp course.csv web/WEB-INF/classes/ && green "已复制 course.csv 到 web/WEB-INF/classes/" || yellow "警告: 未找到 course.csv"
-[ -f "config.properties" ] && cp config.properties web/WEB-INF/classes/ && green "已复制 config.properties 到 web/WEB-INF/classes/" || red "错误: 未找到 config.properties"
+# 从项目根目录复制
+if [ -f "course.csv" ]; then
+    cp "course.csv" web/WEB-INF/classes/ && green "已复制 course.csv 到 web/WEB-INF/classes/"
+else
+    yellow "警告: course.csv 未在项目根目录找到"
+fi
+if [ -f "config.properties" ]; then
+    cp "config.properties" web/WEB-INF/classes/ && green "已复制 config.properties 到 web/WEB-INF/classes/"
+else
+    red "错误: config.properties 未在项目根目录找到，这是运行所必需的！"
+    # exit 1 # 如果config.properties是必需的，可以选择在这里退出
+fi
 
-# 编译Java代码
 yellow "编译Java代码..."
-CLASSPATH="."
-if [ -d "lib" ]; then
-    for jar_file in lib/*.jar; do
-        CLASSPATH="$CLASSPATH:$jar_file"
-    done
-fi
+# 确保所有需要的库都在编译路径中
+CLASSPATH="src"
+# 添加所有需要的jar包到CLASSPATH
+for jar_file in web/WEB-INF/lib/*.jar lib/*.jar "$TOMCAT_HOME/lib/"*.jar; do
+  if [ -f "$jar_file" ]; then
+    CLASSPATH="$CLASSPATH:$jar_file"
+  fi
+done
 
-java_files=$(find src -name "*.java")
-if [ -z "$java_files" ]; then
-    red "未找到任何Java源文件。"
-    exit 1
-fi
+JAVAC_COMMAND="javac -Xlint:all -cp \"$CLASSPATH\" -d classes $(find src -name '*.java')"
 
-javac -d classes -cp "$CLASSPATH" $java_files 2> compile_errors.log
-if [ $? -eq 0 ]; then
+echo "执行编译命令: $JAVAC_COMMAND"
+if eval $JAVAC_COMMAND; then
     green "Java代码编译成功"
     cp -r classes/* web/WEB-INF/classes/
     green "已将编译后的类文件复制到web/WEB-INF/classes/"
 else
-    red "Java代码编译失败，请查看 compile_errors.log"
-    cat compile_errors.log
+    red "Java代码编译失败，请检查错误信息。"
     exit 1
 fi
 
-# 复制jar包
-if [ -d "lib" ]; then
-    yellow "复制库文件到WEB-INF/lib目录..."
-    cp lib/*.jar web/WEB-INF/lib/
-    green "已复制库文件"
+yellow "复制库文件到WEB-INF/lib目录..."
+# 确保从项目的lib目录复制
+if [ -d "lib" ] && [ "$(ls -A lib)" ]; then
+    cp lib/*.jar web/WEB-INF/lib/ && green "已复制库文件"
+else
+    yellow "警告: lib目录为空或不存在，或复制失败"
 fi
 
-# 改进：清理所有Tomcat及相关进程，释放所有可能的端口
-yellow "清理所有Tomcat进程和释放端口..."
+yellow "创建WAR文件..."
+cd web || exit
+if jar -cvf "../$APP_NAME.war" *; then
+    green "WAR文件创建成功: ../$APP_NAME.war"
+else
+    red "WAR文件创建失败。"
+    cd ..
+    exit 1
+fi
+cd ..
+# --- 构建逻辑结束 ---
+
+# 清理所有Tomcat进程和释放端口
 kill_all_tomcat_processes
 
-# 改进：查找可用的端口对
+# 查找并设置端口
 yellow "查找可用的端口对..."
 PORT_PAIR=$(find_available_port_pair)
 
 if [ -z "$PORT_PAIR" ]; then
-    red "无法找到可用的端口对，部署终止。"
+    red "错误: 找不到可用的HTTP和Shutdown端口对。"
     exit 1
 fi
 
-# 解析端口对
-HTTP_PORT=$(echo $PORT_PAIR | cut -d':' -f1)
-SHUTDOWN_PORT=$(echo $PORT_PAIR | cut -d':' -f2)
+SELECTED_HTTP_PORT=$(echo $PORT_PAIR | cut -d: -f1)
+SELECTED_SHUTDOWN_PORT=$(echo $PORT_PAIR | cut -d: -f2)
 
-green "使用HTTP端口: $HTTP_PORT"
-green "使用Shutdown端口: $SHUTDOWN_PORT"
+green "使用HTTP端口: $SELECTED_HTTP_PORT"
+green "使用Shutdown端口: $SELECTED_SHUTDOWN_PORT"
 
-# 设置Tomcat端口
-yellow "配置Tomcat端口..."
-set_tomcat_ports $HTTP_PORT $SHUTDOWN_PORT
+set_tomcat_ports $SELECTED_HTTP_PORT $SELECTED_SHUTDOWN_PORT
 
-# 创建WAR文件
-yellow "创建WAR文件..."
-rm -rf $TOMCAT_HOME/webapps/$APP_NAME
-rm -f $TOMCAT_HOME/webapps/$APP_NAME.war
-cd web
-jar -cvf ../$APP_NAME.war *
-cd ..
+# 将选定的端口保存到文件
+echo "HTTP_PORT=$SELECTED_HTTP_PORT" > .port_config
+echo "SHUTDOWN_PORT=$SELECTED_SHUTDOWN_PORT" >> .port_config
+echo "APP_NAME=$APP_NAME" >> .port_config
 
-cp $APP_NAME.war $TOMCAT_HOME/webapps/
+# 部署WAR文件
+yellow "部署WAR文件到Tomcat..."
+rm -rf "$TOMCAT_HOME/webapps/$APP_NAME" # 删除旧的展开目录
+rm -f "$TOMCAT_HOME/webapps/$APP_NAME.war" # 删除旧的WAR包
+cp "$APP_NAME.war" "$TOMCAT_HOME/webapps/"
 
-# 改进：启动前最后确认端口可用
+# 启动前最后确认端口可用
 yellow "启动前最后确认端口可用..."
-confirm_port_available $HTTP_PORT "HTTP" || exit 1
-confirm_port_available $SHUTDOWN_PORT "Shutdown" || exit 1
+if ! confirm_port_available $SELECTED_HTTP_PORT "HTTP" || ! confirm_port_available $SELECTED_SHUTDOWN_PORT "Shutdown"; then
+    exit 1
+fi
 
 # 启动Tomcat
 yellow "启动Tomcat..."
-$TOMCAT_HOME/bin/startup.sh
+if [ -f "$TOMCAT_HOME/bin/startup.sh" ]; then
+    "$TOMCAT_HOME/bin/startup.sh"
+else
+    red "错误: 未找到Tomcat启动脚本 $TOMCAT_HOME/bin/startup.sh"
+    exit 1
+fi
 
-# 检测Tomcat是否成功启动
-yellow "检测Tomcat是否启动成功..."
-if check_tomcat_running $HTTP_PORT $APP_NAME; then
+# 检测Tomcat是否启动成功
+if check_tomcat_running $SELECTED_HTTP_PORT $APP_NAME; then
     green "========================================"
     green "            部署完成！"
     green "----------------------------------------"
-    green "  访问地址: http://localhost:${HTTP_PORT}/${APP_NAME}"
-    if [ "$HTTP_PORT" != "$DEFAULT_HTTP_PORT" ]; then
-        yellow "  注意：使用了非默认端口 ${HTTP_PORT}"
-    fi
+    yellow "  访问地址: http://localhost:$SELECTED_HTTP_PORT/$APP_NAME"
     green "========================================"
+    yellow "端口配置已保存到 .port_config 文件。"
 else
     red "Tomcat启动超时或启动失败，请检查日志文件："
     red "  $TOMCAT_HOME/logs/catalina.out"
     exit 1
 fi
-
-# 记录当前使用的端口到临时文件，方便后续脚本复用
-echo "HTTP_PORT=$HTTP_PORT" > .port_config
-echo "SHUTDOWN_PORT=$SHUTDOWN_PORT" >> .port_config
-green "端口配置已保存到 .port_config 文件。"
 
 exit 0

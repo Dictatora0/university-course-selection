@@ -39,7 +39,9 @@ public abstract class BaseServlet extends HttpServlet {
         if (requestURI.contains("/check/") || 
             requestURI.contains("/conversation/") || 
             requestURI.contains("/read/") || 
-            requestURI.contains("/delete/")) {
+            requestURI.contains("/delete/") ||
+            requestURI.contains("/accept/") ||
+            requestURI.contains("/reject/")) {
             System.out.println("[BaseServlet] 特殊路径请求，转发到对应的HTTP方法处理");
             super.service(req, resp);
             return;

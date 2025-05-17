@@ -2,12 +2,13 @@ package dao;
 
 import model.Transaction;
 import model.Student; 
-import util.DBUtil; // 确保这是您项目中正确的数据库连接工具类
+import util.DBConnection; // 使用正确的数据库连接工具类
 
 import java.sql.*;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class TransactionDAO {
 
@@ -17,44 +18,63 @@ public class TransactionDAO {
      * transactionDate 如果未提供，则自动设置。
      */
     public boolean add(Transaction transaction) {
-        // 请确保表名 "Transactions" 和列名与您的数据库结构一致
-        String sql = "INSERT INTO Transactions (student_id, type, amount, description, transaction_date, related_student_id) " +
-                     "VALUES (?, ?, ?, ?, ?, ?)";
         Connection conn = null;
         PreparedStatement pstmt = null;
+        CallableStatement cstmt = null;
         boolean success = false;
 
         try {
-            conn = DBUtil.getConnection(); 
-            pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-
-            pstmt.setString(1, transaction.getStudentId());
-            pstmt.setString(2, transaction.getType().name()); // 将枚举名存为字符串
-            pstmt.setBigDecimal(3, transaction.getAmount());
-            pstmt.setString(4, transaction.getDescription());
+            conn = DBConnection.getConnection();
+            conn.setAutoCommit(false);
             
-            if (transaction.getTransactionDate() == null) {
-                pstmt.setTimestamp(5, new Timestamp(System.currentTimeMillis()));
-            } else {
-                pstmt.setTimestamp(5, new Timestamp(transaction.getTransactionDate().getTime()));
+            // 首先生成交易ID
+            cstmt = conn.prepareCall("{CALL GenerateTransactionId(?)}");
+            cstmt.registerOutParameter(1, Types.VARCHAR);
+            cstmt.execute();
+            String transactionId = cstmt.getString(1);
+            
+            if (transactionId == null || transactionId.isEmpty()) {
+                // 如果存储过程失败，使用UUID作为备选方案
+                transactionId = "TRX" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
             }
-            pstmt.setString(6, transaction.getRelatedStudentId()); //可以为 null
+            
+            // 插入交易记录
+            String sql = "INSERT INTO Transaction (transaction_id, student_id, related_student_id, amount, type, description) " +
+                         "VALUES (?, ?, ?, ?, ?, ?)";
+            
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setString(1, transactionId);
+            pstmt.setString(2, transaction.getStudentId());
+            pstmt.setString(3, transaction.getRelatedStudentId()); // 可以为null
+            pstmt.setBigDecimal(4, transaction.getAmount());
+            pstmt.setString(5, transaction.getType().name()); // 将枚举名存为字符串
+            pstmt.setString(6, transaction.getDescription());
 
             int rowsAffected = pstmt.executeUpdate();
+            
             if (rowsAffected > 0) {
-                try (ResultSet generatedKeys = pstmt.getGeneratedKeys()) {
-                    if (generatedKeys.next()) {
-                        transaction.setTransactionId(generatedKeys.getLong(1));
-                    }
-                }
+                transaction.setTransactionId(transactionId);
+                conn.commit();
                 success = true;
+            } else {
+                conn.rollback();
             }
         } catch (SQLException e) {
-            e.printStackTrace(); // 考虑更健壮的日志记录
+            try {
+                if (conn != null) conn.rollback();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
+            e.printStackTrace();
         } finally {
-            // 正确关闭资源
+            try { if (cstmt != null) cstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
             try { if (pstmt != null) pstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
-            try { if (conn != null) conn.close(); } catch (SQLException e) { e.printStackTrace(); }
+            try { 
+                if (conn != null) {
+                    conn.setAutoCommit(true);
+                    conn.close(); 
+                } 
+            } catch (SQLException e) { e.printStackTrace(); }
         }
         return success;
     }
@@ -65,26 +85,25 @@ public class TransactionDAO {
      */
     public List<Transaction> findByStudentId(String studentId) {
         List<Transaction> transactions = new ArrayList<>();
-        // 请确保表名 (Transactions, Student) 和列名与您的数据库结构一致
         String sql = "SELECT t.*, s.name as student_name, rs.name as related_student_name " +
-                     "FROM Transactions t " +
+                     "FROM Transaction t " +
                      "JOIN Student s ON t.student_id = s.student_id " +
-                     "LEFT JOIN Student rs ON t.related_student_id = rs.student_id " + // LEFT JOIN 因为 related_student_id 可能为 null
-                     "WHERE t.student_id = ? ORDER BY t.transaction_date DESC";
+                     "LEFT JOIN Student rs ON t.related_student_id = rs.student_id " +
+                     "WHERE t.student_id = ? ORDER BY t.transaction_time DESC";
         
         Connection conn = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
 
         try {
-            conn = DBUtil.getConnection(); 
+            conn = DBConnection.getConnection(); 
             pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, studentId);
             rs = pstmt.executeQuery();
 
             while (rs.next()) {
                 Transaction transaction = new Transaction();
-                transaction.setTransactionId(rs.getLong("transaction_id"));
+                transaction.setTransactionId(rs.getString("transaction_id"));
                 transaction.setStudentId(rs.getString("student_id"));
                 
                 String typeStr = rs.getString("type");
@@ -92,20 +111,18 @@ public class TransactionDAO {
                     try {
                         transaction.setType(Transaction.TransactionType.valueOf(typeStr.toUpperCase()));
                     } catch (IllegalArgumentException e) {
-                        System.err.println("数据库中存在无效的交易类型，ID: " + rs.getLong("transaction_id") + ", 类型: " + typeStr);
-                        // 可选：设置一个默认类型或跳过此记录
-                        // transaction.setType(Transaction.TransactionType.UNKNOWN); 
+                        System.err.println("数据库中存在无效的交易类型，ID: " + rs.getString("transaction_id") + ", 类型: " + typeStr);
                         continue; // 跳过此格式错误的交易
                     }
                 } else {
-                     System.err.println("数据库中存在空的交易类型，ID: " + rs.getLong("transaction_id"));
+                     System.err.println("数据库中存在空的交易类型，ID: " + rs.getString("transaction_id"));
                     continue; // 如果类型是必需的且为 null，则跳过
                 }
                 
                 transaction.setAmount(rs.getBigDecimal("amount"));
-                transaction.setTransactionDate(rs.getTimestamp("transaction_date"));
+                transaction.setTransactionDate(rs.getTimestamp("transaction_time"));
                 transaction.setDescription(rs.getString("description"));
-                transaction.setRelatedStudentId(rs.getString("related_student_id")); //可能为 null
+                transaction.setRelatedStudentId(rs.getString("related_student_id")); // 可能为 null
                 
                 // 从 JOIN 中填充姓名
                 transaction.setStudentName(rs.getString("student_name"));
@@ -114,9 +131,70 @@ public class TransactionDAO {
                 transactions.add(transaction);
             }
         } catch (SQLException e) {
-            e.printStackTrace(); // 考虑更健壮的日志记录
+            e.printStackTrace();
         } finally {
-            // 正确关闭资源
+            try { if (rs != null) rs.close(); } catch (SQLException e) { e.printStackTrace(); }
+            try { if (pstmt != null) pstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { e.printStackTrace(); }
+        }
+        return transactions;
+    }
+
+    /**
+     * 获取最近的交易记录
+     * @param limit 返回的记录数量限制
+     * @return 按交易时间排序的最近交易记录列表
+     */
+    public List<Transaction> getRecentTransactions(int limit) {
+        List<Transaction> transactions = new ArrayList<>();
+        String sql = "SELECT t.*, s.name as student_name, rs.name as related_student_name " +
+                     "FROM Transaction t " +
+                     "JOIN Student s ON t.student_id = s.student_id " +
+                     "LEFT JOIN Student rs ON t.related_student_id = rs.student_id " +
+                     "ORDER BY t.transaction_time DESC LIMIT ?";
+        
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = DBConnection.getConnection(); 
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setInt(1, limit);
+            rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                Transaction transaction = new Transaction();
+                transaction.setTransactionId(rs.getString("transaction_id"));
+                transaction.setStudentId(rs.getString("student_id"));
+                
+                String typeStr = rs.getString("type");
+                if (typeStr != null) {
+                    try {
+                        transaction.setType(Transaction.TransactionType.valueOf(typeStr.toUpperCase()));
+                    } catch (IllegalArgumentException e) {
+                        System.err.println("数据库中存在无效的交易类型，ID: " + rs.getString("transaction_id") + ", 类型: " + typeStr);
+                        continue; // 跳过此格式错误的交易
+                    }
+                } else {
+                    System.err.println("数据库中存在空的交易类型，ID: " + rs.getString("transaction_id"));
+                    continue; // 如果类型是必需的且为 null，则跳过
+                }
+                
+                transaction.setAmount(rs.getBigDecimal("amount"));
+                transaction.setTransactionDate(rs.getTimestamp("transaction_time"));
+                transaction.setDescription(rs.getString("description"));
+                transaction.setRelatedStudentId(rs.getString("related_student_id"));
+                
+                // 从 JOIN 中填充姓名
+                transaction.setStudentName(rs.getString("student_name"));
+                transaction.setRelatedStudentName(rs.getString("related_student_name"));
+                
+                transactions.add(transaction);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
             try { if (rs != null) rs.close(); } catch (SQLException e) { e.printStackTrace(); }
             try { if (pstmt != null) pstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
             try { if (conn != null) conn.close(); } catch (SQLException e) { e.printStackTrace(); }

@@ -1,19 +1,25 @@
 package model;
 
+import com.google.gson.annotations.SerializedName;
 import java.util.Date;
 
 /**
  * 学生实体类
  */
 public class Student {
+    @SerializedName("student_id")
     private String studentId;
     private String name;
+    @SerializedName("birth_date")
     private Date birthDate;
+    @SerializedName("id_card")
     private String idCard;
     private String address;
     private String password;
+    @SerializedName("created_at")
     private Date createdAt;
     private double balance;
+    @SerializedName("department_id")
     private String deptId;
     
     public Student() {
