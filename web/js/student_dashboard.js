@@ -25,6 +25,10 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('- contextPath:', contextPath);
     console.log('- 登录页面URL:', loginPageUrl);
     
+    // 消息轮询相关变量
+    let messagePollingInterval = null;
+    let lastPollingTime = Date.now();
+    
     // 添加检查session的逻辑，如果localStorage中没有用户信息，尝试从服务器获取
     if (!user.studentId) {
         console.log("本地存储无用户信息，尝试从API获取...");
@@ -57,6 +61,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 initUI();
                 setupEventListeners();
                 
+                // 启动轮询新消息
+                startMessagePolling();
+                
                 // 默认显示主页，并加载主页数据
                 showTab('dashboardMain');
             } else {
@@ -75,6 +82,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // 如果localStorage中有用户信息，继续初始化
         initUI();
         setupEventListeners();
+        
+        // 启动轮询新消息
+        startMessagePolling();
         
         // 默认显示主页，并加载主页数据
         showTab('dashboardMain');
@@ -204,6 +214,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function logout() {
         try {
+            // 停止消息轮询
+            stopMessagePolling();
+            
             await API.student.logout();
             localStorage.removeItem('user');
             localStorage.removeItem('userType');
@@ -214,6 +227,59 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             window.showToast('退出登录失败: ' + error.message, 'danger');
         }
+    }
+
+    // 停止轮询新消息
+    function stopMessagePolling() {
+        if (messagePollingInterval) {
+            clearInterval(messagePollingInterval);
+            messagePollingInterval = null;
+            console.log("已停止消息轮询");
+        }
+    }
+    
+    // 检查新消息
+    async function checkNewMessages() {
+        try {
+            console.log("检查新消息...");
+            
+            // 如果当前正在聊天，更新聊天窗口
+            if (currentChatFriendId) {
+                if (document.getElementById('messages').classList.contains('active')) {
+                    await loadAndDisplayMessages(currentChatFriendId, 'mainChatMessagesContainer', false);
+                }
+                
+                if (document.getElementById('chatWindow')?.style.display === 'flex') {
+                    await loadAndDisplayMessages(currentChatFriendId, 'chatWindowMessages', false);
+                }
+            }
+            
+            // 如果消息页面处于活动状态，更新联系人列表
+            if (document.getElementById('messages').classList.contains('active')) {
+                await loadRecentContacts();
+            }
+            
+            lastPollingTime = Date.now();
+        } catch (error) {
+            console.error("检查新消息失败:", error);
+        }
+    }
+    
+    // 启动轮询新消息
+    function startMessagePolling() {
+        // 先停止现有的轮询（如果有）
+        stopMessagePolling();
+        
+        // 设置新的轮询间隔
+        messagePollingInterval = setInterval(async () => {
+            // 仅当用户未进行其他操作时才进行轮询
+            const currentTime = Date.now();
+            if (currentTime - lastPollingTime > 10000) { // 每10秒检查一次新消息
+                await checkNewMessages();
+            }
+        }, 10000); // 每10秒检查一次是否需要轮询
+        
+        console.log("已启动消息轮询");
     }
 
     async function loadAllCourses() {
@@ -548,8 +614,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     async function loadFriendsAndRecommendations() {
-        loadFriends();
-        loadFriendRecommendations();
+        try {
+            // 先完整加载好友列表
+            await loadFriends();
+            console.log("好友列表加载完成，开始加载推荐");
+            
+            // 然后加载推荐
+            await loadFriendRecommendations();
+        } catch (error) {
+            console.error("加载好友和推荐失败:", error);
+            window.showToast("加载好友和推荐信息失败", "danger");
+        }
     }
 
     async function loadFriends() {
@@ -680,21 +755,57 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     async function addFriendById(friendId) { // Made globally accessible for onclick
-        if (!friendId) {
-            window.showToast('好友ID不能为空', 'warning');
+        // 检查ID参数是否有效
+        if (!friendId || typeof friendId !== 'string' || friendId.trim() === '') {
+            console.error(`添加好友失败: 无效的ID参数`, friendId);
+            window.showToast('添加好友失败: 无效的ID参数', 'warning');
             return;
         }
         
+        // 规范化ID，移除多余空格
+        const trimmedId = friendId.trim();
+        
         try {
-            console.log(`尝试添加好友 ID: ${friendId}`);
-            await API.friendship.add(friendId);
+            // 先检查是否已经是好友或已发送请求
+            console.log(`尝试添加好友 ID: ${trimmedId}`);
+            
+            // 获取现有好友列表，检查重复添加
+            const friends = await API.friendship.list();
+            const existingFriend = friends.find(f => 
+                (f.studentId === trimmedId || f.student_id === trimmedId) && 
+                ['ACCEPTED', 'PENDING_REQUEST'].includes(f.status)
+            );
+            
+            if (existingFriend) {
+                if (existingFriend.status === 'ACCEPTED') {
+                    window.showToast(`${existingFriend.name || trimmedId} 已经是您的好友`, 'info');
+                } else {
+                    window.showToast(`已向 ${existingFriend.name || trimmedId} 发送过好友请求`, 'info');
+                }
+                return;
+            }
+            
+            // 发送添加好友请求
+            await API.friendship.add(trimmedId);
             window.showToast('好友请求已发送!', 'success');
-            console.log("好友请求发送成功，重新加载好友列表");
+            console.log(`好友请求发送成功，ID: ${trimmedId}`);
+            
             // 刷新好友列表，显示新发送的请求
             loadFriends(); 
         } catch (error) {
-            console.error(`添加好友失败 (ID: ${friendId}):`, error);
-            window.showToast(`添加好友失败: ${error.message}`, 'danger');
+            console.error(`添加好友失败 (ID: ${trimmedId}):`, error);
+            
+            // 根据错误类型提供更友好的错误信息
+            let errorMessage = error.message || '未知错误';
+            if (errorMessage.includes('不存在')) {
+                errorMessage = `学号为 ${trimmedId} 的学生不存在，请检查学号是否正确`;
+            } else if (errorMessage.includes('已经发送')) {
+                errorMessage = `已经向该学生发送过好友请求`;
+            } else if (errorMessage.includes('自己')) {
+                errorMessage = `不能添加自己为好友`;
+            }
+            
+            window.showToast(`添加好友失败: ${errorMessage}`, 'danger');
         }
     }
 
@@ -718,11 +829,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultsList.innerHTML = '<li class="list-group-item text-muted">未找到相关学生</li>';
                 return;
             }
+            
             students.forEach(student => {
                 // 处理API返回的字段名不一致问题
                 const studentId = student.student_id || student.studentId;
                 const studentName = student.name;
                 const deptName = student.dept_name || student.deptName;
+                
+                if (!studentId) {
+                    console.error("搜索结果数据异常，缺少学生ID:", student);
+                    return; // 跳过没有ID的记录
+                }
                 
                 const item = document.createElement('li');
                 item.className = 'list-group-item search-result-item d-flex align-items-center';
@@ -736,10 +853,27 @@ document.addEventListener('DOMContentLoaded', function() {
                         <small class="d-block text-muted">院系: ${deptName || '未知'}</small>
                     </div>
                     <div class="search-result-actions ms-auto">
-                        <button class="btn btn-sm btn-outline-primary" onclick="window.addFriendById('${studentId}')"><i class="bi bi-person-plus"></i> 添加</button>
+                        <button class="btn btn-sm btn-outline-primary search-add-friend-btn" data-student-id="${studentId}">
+                            <i class="bi bi-person-plus"></i> 添加
+                        </button>
                     </div>
                 `;
                 resultsList.appendChild(item);
+                
+                // 使用事件委托添加点击事件
+                const addButton = item.querySelector('.search-add-friend-btn');
+                if (addButton) {
+                    addButton.addEventListener('click', function() {
+                        const friendId = this.dataset.studentId;
+                        if (friendId) {
+                            console.log(`点击搜索结果添加好友按钮，好友ID: ${friendId}`);
+                            addFriendById(friendId);
+                        } else {
+                            console.error('添加好友失败: 未找到好友ID');
+                            window.showToast('添加好友失败: 未找到好友ID', 'danger');
+                        }
+                    });
+                }
             });
         } catch (error) {
             console.error("搜索学生失败:", error);
@@ -755,32 +889,82 @@ document.addEventListener('DOMContentLoaded', function() {
             const listElement = document.getElementById('recommendedFriendsList');
             if(!listElement) return;
             listElement.innerHTML = '';
-        if (recommendations.length === 0) {
+            
+            if (!recommendations || recommendations.length === 0) {
                 listElement.innerHTML = '<li class="list-group-item text-muted text-center">暂无好友推荐</li>';
-            return;
-        }
-        recommendations.forEach(friend => {
-            const item = document.createElement('li');
+                return;
+            }
+            
+            console.log("好友推荐数据:", recommendations);
+            
+            recommendations.forEach(friend => {
+                // 确保studentId字段存在，规范化API返回的数据
+                const studentId = friend.student_id || friend.studentId;
+                const name = friend.name || '未知姓名';
+                const deptName = friend.dept_name || friend.deptName || '未知院系';
+                
+                if (!studentId) {
+                    console.error("推荐好友数据异常，缺少学生ID:", friend);
+                    return; // 跳过没有ID的记录
+                }
+                
+                const item = document.createElement('li');
                 item.className = 'list-group-item recommendation-item d-flex align-items-center';
-                const avatarLetter = (friend.name || 'R').charAt(0).toUpperCase();
-                const avatarBgColor = getRandomColor(friend.studentId || Math.random().toString());
-            item.innerHTML = `
+                const avatarLetter = (name.charAt(0) || 'R').toUpperCase();
+                const avatarBgColor = getRandomColor(studentId || Math.random().toString());
+                
+                item.innerHTML = `
                     <div class="friend-avatar" style="background-color: ${avatarBgColor};">${avatarLetter}</div>
                     <div class="recommendation-info flex-grow-1">
-                        <strong>${friend.name} (${friend.studentId})</strong>
-                        <small class="d-block text-muted">院系: ${friend.deptName || '未知'}</small>
+                        <strong>${name} (${studentId})</strong>
+                        <small class="d-block text-muted">院系: ${deptName}</small>
                         ${friend.recommendReason ? `<small class="text-success d-block fst-italic">${friend.recommendReason}</small>` : ''}
                     </div>
                     <div class="recommendation-actions ms-auto">
-                        <button class="btn btn-sm btn-outline-primary" onclick="window.addFriendById('${friend.studentId}')"><i class="bi bi-person-plus"></i> 添加</button>
-                </div>
+                        <button class="btn btn-sm btn-outline-primary add-friend-btn" data-student-id="${studentId}">
+                            <i class="bi bi-person-plus"></i> 添加
+                        </button>
+                    </div>
                 `;
+                
                 listElement.appendChild(item);
+                
+                // 使用事件委托添加点击事件
+                const addButton = item.querySelector('.add-friend-btn');
+                if (addButton) {
+                    addButton.addEventListener('click', function() {
+                        const friendId = this.dataset.studentId;
+                        if (friendId) {
+                            console.log(`点击添加好友按钮，好友ID: ${friendId}`);
+                            addFriendById(friendId);
+                        } else {
+                            console.error('添加好友失败: 未找到好友ID');
+                            window.showToast('添加好友失败: 未找到好友ID', 'danger');
+                        }
+                    });
+                }
             });
         } catch (error) {
             console.error('加载好友推荐失败:', error);
             const listElement = document.getElementById('recommendedFriendsList');
-            if(listElement) listElement.innerHTML = '<li class="list-group-item text-danger text-center">加载推荐失败</li>';
+            if(listElement) {
+                listElement.innerHTML = `
+                    <li class="list-group-item text-danger text-center">加载推荐失败: ${error.message || '未知错误'}</li>
+                    <li class="list-group-item text-center">
+                        <button class="btn btn-sm btn-primary retry-recommendations-btn">
+                            <i class="bi bi-arrow-clockwise"></i> 重试
+                        </button>
+                    </li>
+                `;
+                
+                // 添加重试按钮事件
+                const retryButton = listElement.querySelector('.retry-recommendations-btn');
+                if (retryButton) {
+                    retryButton.addEventListener('click', function() {
+                        loadFriendRecommendations();
+                    });
+                }
+            }
         }
     }
     
@@ -863,32 +1047,176 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentChatFriendId = null;
     let currentChatFriendName = null;
 
+    // 检查用户登录状态
+    async function checkLoginStatus() {
+        try {
+            console.log("检查用户登录状态...");
+            const response = await fetch('/course-selection/api/students/getInfo', {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            console.log("登录状态检查响应:", response.status);
+            
+            if (!response.ok) {
+                return false;
+            }
+            
+            const data = await response.json();
+            console.log("登录状态检查结果:", data);
+            
+            if (!data.success) {
+                return false;
+            }
+            
+            // 更新本地存储的用户信息
+            const studentInfo = data.data;
+            const userData = {
+                studentId: studentInfo.student_id,
+                name: studentInfo.name,
+                balance: studentInfo.balance,
+                deptId: studentInfo.deptId,
+                deptName: studentInfo.deptName
+            };
+            localStorage.setItem('user', JSON.stringify(userData));
+            
+            return true;
+        } catch (error) {
+            console.error("检查登录状态失败:", error);
+            return false;
+        }
+    }
+    
     async function loadRecentContacts() {
         const listElement = document.getElementById('recentContactsList');
         if(!listElement) return;
         listElement.innerHTML = '<p class="list-group-item text-muted text-center">加载中...</p>'; // Loading state
+        
+        // 先检查登录状态
+        const isLoggedIn = await checkLoginStatus();
+        if (!isLoggedIn) {
+            console.error("用户未登录，无法加载最近联系人");
+            listElement.innerHTML = '<p class="list-group-item text-danger text-center">未登录或会话已过期</p>';
+            
+            const buttonDiv = document.createElement('div');
+            buttonDiv.className = 'text-center mt-3';
+            buttonDiv.innerHTML = `
+                <button id="reloginBtn" class="btn btn-sm btn-primary">
+                    <i class="bi bi-box-arrow-in-right"></i> 重新登录
+                </button>
+            `;
+            listElement.appendChild(buttonDiv);
+            
+            document.getElementById('reloginBtn')?.addEventListener('click', () => {
+                window.location.href = loginPageUrl;
+            });
+            
+            return;
+        }
+        
         try {
             console.log("尝试获取最近联系人列表...");
-            const contacts = await API.message.getRecentContacts();
-            console.log("获取到的联系人:", contacts);
+            
+            // 获取当前用户ID，用于调试
+            const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+            console.log("当前用户ID:", currentUser.studentId);
+            
+            // 发送API请求，添加时间戳防止缓存
+            const timestamp = new Date().getTime();
+            const response = await fetch(`${API.baseUrl}/message/recent_contacts?_=${timestamp}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                },
+                credentials: 'include'
+            });
+            
+            console.log("API响应状态:", response.status);
+            
+            // 如果响应不成功，尝试读取响应内容以获取更详细的错误信息
+            if (!response.ok) {
+                let errorText = `HTTP错误 ${response.status}`;
+                try {
+                    // 尝试读取响应内容
+                    const errorResponse = await response.text();
+                    console.error("API错误响应内容:", errorResponse);
+                    
+                    // 尝试解析JSON
+                    try {
+                        const errorJson = JSON.parse(errorResponse);
+                        if (errorJson.message) {
+                            errorText = errorJson.message;
+                        }
+                    } catch (jsonError) {
+                        // 如果不是JSON，直接使用文本
+                        if (errorResponse && errorResponse.trim()) {
+                            errorText = errorResponse.trim();
+                        }
+                    }
+                } catch (textError) {
+                    console.error("无法读取错误响应内容:", textError);
+                }
+                
+                throw new Error(errorText);
+            }
+            
+            // 解析响应数据
+            const result = await response.json();
+            console.log("API原始返回结果:", result);
+            
+            if (!result.success) {
+                throw new Error(result.message || "获取联系人失败");
+            }
+            
+            // 确保我们正确提取数据
+            const contacts = result.data || [];
+            console.log("获取到的联系人数据:", contacts);
             
             if (!contacts || contacts.length === 0) {
                 listElement.innerHTML = '<p class="list-group-item text-muted text-center">没有最近联系人</p>';
+                // 如果没有联系人，提供一个按钮生成测试数据
+                const buttonDiv = document.createElement('div');
+                buttonDiv.className = 'text-center mt-3';
+                buttonDiv.innerHTML = `
+                    <button id="generateTestContactsBtn" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-plus-circle"></i> 生成测试联系人
+                    </button>
+                `;
+                listElement.appendChild(buttonDiv);
+                
+                // 添加生成测试数据的功能
+                document.getElementById('generateTestContactsBtn')?.addEventListener('click', () => {
+                    generateTestContacts();
+                });
                 return;
             }
             
             listElement.innerHTML = '';
             contacts.forEach(contact => {
+                // 规范化contact对象字段，处理后端返回的可能字段名差异
+                const normalizedContact = {
+                    studentId: contact.studentId,
+                    name: contact.name,
+                    lastMessage: contact.lastMessage,
+                    lastMessageTime: contact.lastMessageTime ? new Date(contact.lastMessageTime) : null,
+                    unreadCount: contact.unreadCount || 0
+                };
+                
+                console.log("处理联系人:", normalizedContact);
+                
                 const item = document.createElement('a');
                 item.href = '#';
                 item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
-                const avatarLetter = (contact.name || 'C').charAt(0).toUpperCase();
-                const avatarBgColor = getRandomColor(contact.studentId || Math.random().toString());
+                const avatarLetter = (normalizedContact.name || 'C').charAt(0).toUpperCase();
+                const avatarBgColor = getRandomColor(normalizedContact.studentId || Math.random().toString());
                 
                 // 格式化最后一条消息时间
                 let timeDisplay = '';
-                if (contact.lastMessageTime) {
-                    const msgDate = new Date(contact.lastMessageTime);
+                if (normalizedContact.lastMessageTime) {
+                    const msgDate = normalizedContact.lastMessageTime;
                     const now = new Date();
                     if (msgDate.toDateString() === now.toDateString()) {
                         // 如果是今天，则显示时间
@@ -903,35 +1231,117 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="d-flex align-items-center">
                         <div class="friend-avatar me-2" style="background-color: ${avatarBgColor}; width: 40px; height: 40px; font-size: 0.9rem;">${avatarLetter}</div>
                         <div class="flex-grow-1">
-                            <strong class="d-block">${contact.name}</strong>
-                            <small class="d-block text-muted text-truncate" style="max-width: 150px;">${contact.lastMessage ? contact.lastMessage : '暂无消息'}</small>
+                            <strong class="d-block">${normalizedContact.name || '未知联系人'}</strong>
+                            <small class="d-block text-muted text-truncate" style="max-width: 150px;">${normalizedContact.lastMessage ? normalizedContact.lastMessage : '暂无消息'}</small>
                         </div>
                     </div>
                     <div class="d-flex flex-column align-items-end">
                         <small class="text-muted">${timeDisplay}</small>
-                        ${contact.unreadCount > 0 ? `<span class="badge bg-danger rounded-pill mt-1">${contact.unreadCount}</span>` : ''}
+                        ${normalizedContact.unreadCount > 0 ? `<span class="badge bg-danger rounded-pill mt-1">${normalizedContact.unreadCount}</span>` : ''}
                     </div>
                 `;
                 item.onclick = (e) => {
                     e.preventDefault();
-                    openMainChat(contact.studentId, contact.name);
+                    openMainChat(normalizedContact.studentId, normalizedContact.name);
                 };
                 listElement.appendChild(item);
             });
         } catch (error) {
             console.error('加载最近联系人失败:', error);
-            listElement.innerHTML = '<p class="list-group-item text-danger text-center">加载联系人失败</p>';
-            // 如果API调用失败，则使用模拟数据作为备用
+            listElement.innerHTML = '<p class="list-group-item text-danger text-center">加载联系人失败: ' + (error.message || '未知错误') + '</p>';
+            
+            // 添加重试按钮和生成测试数据按钮
+            const buttonDiv = document.createElement('div');
+            buttonDiv.className = 'text-center mt-3';
+            buttonDiv.innerHTML = `
+                <button id="retryLoadContactsBtn" class="btn btn-sm btn-primary me-2">
+                    <i class="bi bi-arrow-clockwise"></i> 重试
+                </button>
+                <button id="generateTestContactsBtn" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-plus-circle"></i> 生成测试联系人
+                </button>
+            `;
+            listElement.appendChild(buttonDiv);
+            
+            // 添加重试功能
+            document.getElementById('retryLoadContactsBtn')?.addEventListener('click', () => {
+                loadRecentContacts();
+            });
+            
+            // 添加生成测试数据的功能
+            document.getElementById('generateTestContactsBtn')?.addEventListener('click', () => {
+                generateTestContacts();
+            });
+            
+            // 只有在API调用失败时才使用模拟数据作为备用
+            console.log("使用模拟数据作为备用...");
             mockLoadRecentContacts();
         }
     }
     
+    // 生成测试联系人数据
+    async function generateTestContacts() {
+        try {
+            console.log("生成测试联系人数据...");
+            window.showToast("正在生成测试数据...", "info");
+            
+            // 当前用户信息
+            const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+            if (!currentUser.studentId) {
+                throw new Error("用户未登录");
+            }
+            
+            // 获取所有好友
+            const friendsData = await API.friendship.list();
+            console.log("好友列表:", friendsData);
+            
+            // 规范化好友数据
+            const friends = friendsData.filter(f => f.status === 'ACCEPTED').map(friend => ({
+                studentId: friend.student_id || friend.studentId,
+                name: friend.name
+            }));
+            
+            if (friends.length === 0) {
+                window.showToast("您没有好友，请先添加好友", "warning");
+                return;
+            }
+            
+            // 为每个好友发送一条测试消息
+            for (const friend of friends) {
+                const message = `这是一条测试消息，发送时间：${new Date().toLocaleString()}`;
+                console.log(`向好友 ${friend.name}(${friend.studentId}) 发送测试消息: ${message}`);
+                
+                await API.message.send(friend.studentId, message);
+            }
+            
+            window.showToast("测试数据生成成功，已向所有好友发送测试消息", "success");
+            
+            // 重新加载联系人列表
+            await loadRecentContacts();
+            
+        } catch (error) {
+            console.error("生成测试数据失败:", error);
+            window.showToast(`生成测试数据失败: ${error.message}`, "danger");
+        }
+    }
+
+    // 模拟最近联系人数据（仅在API调用失败时使用）
     function mockLoadRecentContacts() { 
         const contacts = [
             { studentId: '2024001', name: '张三', lastMessage: '你好啊！最近怎么样?', unreadCount: 2 },
             { studentId: '2024002', name: '李四', lastMessage: '晚上有空一起吃饭吗？', unreadCount: 0 },
             { studentId: '2024003', name: '王五', lastMessage: 'OK, 没问题', unreadCount: 5 },
         ];
+        
+        // 添加直接调试按钮
+        const debugButton = document.createElement('div');
+        debugButton.className = 'text-center mt-3';
+        debugButton.innerHTML = `
+            <button id="debugContactsBtn" class="btn btn-sm btn-warning">
+                <i class="bi bi-bug"></i> 直接测试数据库
+            </button>
+        `;
+        
         const listElement = document.getElementById('recentContactsList');
         if(!listElement) return;
         listElement.innerHTML = '';
@@ -959,6 +1369,80 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         if(contacts.length === 0){
              listElement.innerHTML = '<p class="list-group-item text-muted text-center">没有最近联系人</p>';
+        }
+        
+        // 添加调试按钮
+        listElement.appendChild(debugButton);
+        
+        // 添加事件监听器
+        document.getElementById('debugContactsBtn')?.addEventListener('click', () => {
+            debugContactsDatabase();
+        });
+    }
+    
+    // 直接测试数据库联系人
+    function debugContactsDatabase() {
+        const debugInfo = document.createElement('div');
+        debugInfo.className = 'mt-3 p-3 bg-light';
+        debugInfo.innerHTML = `
+            <h5>数据库调试信息</h5>
+            <p>请打开控制台，查看以下信息并提供给开发者：</p>
+            <ol class="text-start">
+                <li>确认您已经登录，并且有效的会话Cookie</li>
+                <li>确认您的账号有好友关系</li>
+                <li>检查后端服务是否正常运行</li>
+                <li>检查前端JS console是否有错误</li>
+                <li>检查网络请求是否正确发送和接收</li>
+            </ol>
+            <p>您可以尝试手动发送消息，然后尝试再次加载联系人列表</p>
+        `;
+        
+        // 显示调试信息
+        const listElement = document.getElementById('recentContactsList');
+        if (listElement) {
+            listElement.innerHTML = '';
+            listElement.appendChild(debugInfo);
+            
+            // 添加重新登录按钮
+            const buttonDiv = document.createElement('div');
+            buttonDiv.className = 'text-center mt-3';
+            buttonDiv.innerHTML = `
+                <button id="reloginBtn" class="btn btn-primary me-2">
+                    <i class="bi bi-box-arrow-in-right"></i> 重新登录
+                </button>
+                <button id="manualTestBtn" class="btn btn-secondary me-2">
+                    <i class="bi bi-pencil-square"></i> 手动发消息
+                </button>
+                <button id="retryLoadBtn" class="btn btn-success">
+                    <i class="bi bi-arrow-repeat"></i> 重试加载
+                </button>
+            `;
+            listElement.appendChild(buttonDiv);
+            
+            // 添加事件监听器
+            document.getElementById('reloginBtn')?.addEventListener('click', () => {
+                window.location.href = loginPageUrl;
+            });
+            
+            document.getElementById('manualTestBtn')?.addEventListener('click', () => {
+                // 打开好友列表，用户可以选择好友发送消息
+                showTab('friends');
+            });
+            
+            document.getElementById('retryLoadBtn')?.addEventListener('click', () => {
+                loadRecentContacts();
+            });
+            
+            // 输出技术细节到控制台，帮助调试
+            console.log("调试信息汇总：");
+            console.log("1. 当前用户信息:", JSON.parse(localStorage.getItem('user') || '{}'));
+            console.log("2. API基础URL:", API.baseUrl);
+            console.log("3. 当前页面路径:", window.location.pathname);
+            console.log("4. 浏览器User-Agent:", navigator.userAgent);
+            console.log("5. 操作系统:", navigator.platform);
+            
+            // 提示用户检查网络请求
+            console.log("%c请检查Network面板中对/message/recent_contacts的请求", "color:red; font-size:16px; font-weight:bold");
         }
     }
 
@@ -1054,19 +1538,44 @@ document.addEventListener('DOMContentLoaded', function() {
         const content = input.value.trim();
         
         if (content) {
+            // 禁用发送按钮防止重复提交
+            const sendButton = document.querySelector('#chatWindowMessageForm button[type="submit"]');
+            if(sendButton) {
+                sendButton.disabled = true;
+                sendButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+            }
+            
             try {
+                console.log(`发送消息到聊天窗口: ${content}`);
                 const sentMessage = await API.message.send(currentChatFriendId, content);
-                appendMessageToContainer(sentMessage, user.studentId, document.getElementById('chatWindowMessages'));
-                document.getElementById('chatWindowMessages').scrollTop = document.getElementById('chatWindowMessages').scrollHeight;
-                input.value = '';
+                console.log("发送消息结果:", sentMessage);
                 
+                // 清空输入框并获取焦点
+                input.value = '';
+                input.focus();
+                
+                // 刷新当前聊天窗口以确保消息已更新
+                await loadAndDisplayMessages(currentChatFriendId, 'chatWindowMessages', false);
+                
+                // 如果主消息页面也在显示与同一个好友的对话，也刷新它
                 if (document.getElementById('messages').classList.contains('active') && 
                     document.getElementById('chattingWithName')?.textContent === currentChatFriendName) {
-                    appendMessageToContainer(sentMessage, user.studentId, document.getElementById('mainChatMessagesContainer'));
-                     document.getElementById('mainChatMessagesContainer').scrollTop = document.getElementById('mainChatMessagesContainer').scrollHeight;
+                    await loadAndDisplayMessages(currentChatFriendId, 'mainChatMessagesContainer', false);
+                }
+                
+                // 刷新最近联系人列表
+                if (document.getElementById('messages').classList.contains('active')) {
+                    loadRecentContacts();
                 }
             } catch (error) {
+                console.error("发送消息失败:", error);
                 window.showToast(`发送消息失败: ${error.message}`, 'danger');
+            } finally {
+                // 恢复发送按钮状态
+                if(sendButton) {
+                    sendButton.disabled = false;
+                    sendButton.innerHTML = '<i class="bi bi-send"></i>';
+                }
             }
         }
     }
@@ -1074,23 +1583,46 @@ document.addEventListener('DOMContentLoaded', function() {
     async function handleMainSendMessage(event) {
         event.preventDefault();
         const input = document.getElementById('mainMessageInput');
-         if(!input || !currentChatFriendId) return;
+        if(!input || !currentChatFriendId) return;
         const content = input.value.trim();
 
         if (content) {
+            // 禁用发送按钮防止重复提交
+            const sendButton = document.getElementById('mainSendMessageBtn');
+            if(sendButton) {
+                sendButton.disabled = true;
+                sendButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+            }
+            
             try {
+                console.log(`从主消息页面发送消息: ${content}`);
                 const sentMessage = await API.message.send(currentChatFriendId, content);
-                appendMessageToContainer(sentMessage, user.studentId, document.getElementById('mainChatMessagesContainer'));
-                document.getElementById('mainChatMessagesContainer').scrollTop = document.getElementById('mainChatMessagesContainer').scrollHeight;
+                console.log("发送消息结果:", sentMessage);
+                
+                // 清空输入框并获取焦点
                 input.value = '';
+                input.focus();
+                
+                // 刷新主消息页面的聊天内容
+                await loadAndDisplayMessages(currentChatFriendId, 'mainChatMessagesContainer', false);
 
+                // 如果浮动聊天窗口也在显示与同一个好友的对话，也刷新它
                 if (document.getElementById('chatWindow')?.style.display === 'flex' && 
                     document.getElementById('chatWindowFriendName')?.textContent.includes(currentChatFriendName)) {
-                     appendMessageToContainer(sentMessage, user.studentId, document.getElementById('chatWindowMessages'));
-                     document.getElementById('chatWindowMessages').scrollTop = document.getElementById('chatWindowMessages').scrollHeight;
+                    await loadAndDisplayMessages(currentChatFriendId, 'chatWindowMessages', false);
                 }
+                
+                // 刷新最近联系人列表
+                loadRecentContacts();
             } catch (error) {
+                console.error("发送消息失败:", error);
                 window.showToast(`发送消息失败: ${error.message}`, 'danger');
+            } finally {
+                // 恢复发送按钮状态
+                if(sendButton) {
+                    sendButton.disabled = false;
+                    sendButton.innerHTML = '<i class="bi bi-send"></i>';
+                }
             }
         }
     }
@@ -1128,6 +1660,33 @@ document.addEventListener('DOMContentLoaded', function() {
         const newConfirmBtn = confirmBtn.cloneNode(true); 
         confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
+        // 显示转账警告区域（默认隐藏）
+        const warningEl = document.getElementById('transferWarningAlert');
+        if (warningEl) {
+            warningEl.style.display = 'none';
+        }
+
+        // 为金额输入框添加验证和警告显示
+        if (amountInputEl) {
+            amountInputEl.addEventListener('input', function() {
+                const amount = parseFloat(this.value);
+                if (warningEl) {
+                    // 当金额超过500元时显示警告
+                    if (!isNaN(amount) && amount > 500) {
+                        warningEl.style.display = 'block';
+                        warningEl.innerHTML = `
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <strong>转账金额较大！</strong> 您正准备向 ${recipientName} 转账 
+                            <span class="text-danger fw-bold">${amount.toFixed(2)}元</span>，
+                            请再次确认金额正确。
+                        `;
+                    } else {
+                        warningEl.style.display = 'none';
+                    }
+                }
+            });
+        }
+
         // 确保我们为新的按钮添加事件监听器
         newConfirmBtn.addEventListener('click', async function confirmTransferHandler(event) {
             event.preventDefault(); // 防止表单默认提交
@@ -1140,6 +1699,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.showToast('请输入有效的转账金额', 'warning');
                 return;
             }
+
+            // 转账金额预警
+            if (amountVal > 500) {
+                // 显示确认对话框
+                if (!confirm(`您确定要向 ${recipientName} 转账 ${amountVal.toFixed(2)}元吗？这是一笔大额转账，请再次确认。`)) {
+                    console.log("用户取消了大额转账");
+                    return;
+                }
+            }
+
             try {
                 console.log(`准备向 ${recipientId} 转账 ${amountVal} 元, 备注: ${notesVal}`);
                  // 确保API.payment.transfer存在并正确定义
@@ -1191,38 +1760,258 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.show();
     }
 
-    async function loadProfileInfo() {
-        try {
-            const student = await API.student.getInfo();
-            const profileStudentIdEl = document.getElementById('profileStudentId');
-            const profileNameEl = document.getElementById('profileName');
-            const profileDeptNameEl = document.getElementById('profileDeptName');
-            const profileBirthDateEl = document.getElementById('profileBirthDate');
-            const profileIdCardEl = document.getElementById('profileIdCard');
-            const profileAddressEl = document.getElementById('profileAddress');
-
-            if(profileStudentIdEl) profileStudentIdEl.textContent = student.studentId;
-            if(profileNameEl) profileNameEl.textContent = student.name;
-            if(profileDeptNameEl) profileDeptNameEl.textContent = student.deptName || '未设置';
-            if(profileBirthDateEl) profileBirthDateEl.textContent = student.birthDate ? new Date(student.birthDate).toLocaleDateString() : '-';
-            if(profileIdCardEl) profileIdCardEl.textContent = student.idCard || '-';
-            if(profileAddressEl) profileAddressEl.textContent = student.address || '-';
-            loadBalance(); 
-            
-            // 同时更新initUI中的用户信息，确保用户院系信息也被更新到localStorage中
-            if(student.deptId && student.deptName) {
-                const userData = JSON.parse(localStorage.getItem('user') || '{}');
-                userData.deptId = student.deptId;
-                userData.deptName = student.deptName;
-                localStorage.setItem('user', JSON.stringify(userData));
-                console.log("用户院系信息已更新:", student.deptName);
+    function replaceLoadProfileInfo() {
+        async function loadProfileInfo() {
+            try {
+                // 获取学生信息
+                const student = await API.student.getInfo();
+                
+                // 更新简单的文本字段
+                document.getElementById('profileStudentId').textContent = student.studentId || '-';
+                document.getElementById('profileName').textContent = student.name || '-';
+                document.getElementById('profileDeptName').textContent = student.deptName || '未设置';
+                document.getElementById('profileBirthDate').textContent = student.birthDate ? new Date(student.birthDate).toLocaleDateString() : '-';
+                document.getElementById('profileIdCard').textContent = student.idCard || '-';
+                document.getElementById('profileAddress').textContent = student.address || '-';
+                document.getElementById('profileEmail').textContent = student.email || '-';
+                document.getElementById('profilePhone').textContent = student.phone || '-';
+                
+                // 更新余额显示
+                const balance = parseFloat(student.balance || 0).toFixed(2);
+                document.getElementById('profileBalance').textContent = `¥ ${balance}`;
+                document.getElementById('profileBalanceDisplay').textContent = `¥ ${balance}`;
+                
+                // 更新左侧个人卡片
+                document.getElementById('profileNameLarge').textContent = student.name || '未知姓名';
+                document.getElementById('profileDeptNameLarge').textContent = student.deptName || '未知院系';
+                
+                // 设置头像
+                const avatarEl = document.getElementById('profileAvatar');
+                if (avatarEl && student.name) {
+                    avatarEl.textContent = student.name.charAt(0).toUpperCase();
+                }
+                
+                // 初始化编辑表单
+                initProfileEditForm(student);
+                
+                // 同时更新initUI中的用户信息，确保用户院系信息也被更新到localStorage中
+                if (student.deptId && student.deptName) {
+                    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+                    userData.deptId = student.deptId;
+                    userData.deptName = student.deptName;
+                    localStorage.setItem('user', JSON.stringify(userData));
+                    console.log("用户院系信息已更新:", student.deptName);
+                }
+                
+                // 加载院系数据用于编辑表单
+                loadDepartments();
+                
+                // 加载个性化好友推荐到个人页面
+                loadFriendRecommendations(); // 修正：调用 loadFriendRecommendations
+                
+            } catch (error) {
+                console.error('获取个人信息失败:', error);
+                window.showToast('获取个人信息失败: ' + error.message, 'danger');
             }
-        } catch (error) {
-            console.error('获取个人信息失败:', error);
-            window.showToast('获取个人信息失败', 'danger');
         }
+        
+        // 初始化个人信息编辑表单
+        function initProfileEditForm(studentData) {
+            // 编辑按钮事件
+            const editBtn = document.getElementById('editProfileBtn');
+            const cancelBtn = document.getElementById('cancelEditBtn');
+            const editForm = document.getElementById('editProfileForm');
+            
+            // 显示/隐藏编辑表单
+            if (editBtn) {
+                editBtn.addEventListener('click', function() {
+                    document.getElementById('profileInfoView').style.display = 'none';
+                    document.getElementById('profileInfoEdit').style.display = 'block';
+                    
+                    // 初始化表单数据
+                    document.getElementById('editName').value = studentData.name || '';
+                    
+                    // 出生日期需要格式化为YYYY-MM-DD格式
+                    const birthDate = studentData.birthDate ? new Date(studentData.birthDate) : null;
+                    if (birthDate) {
+                        const year = birthDate.getFullYear();
+                        const month = String(birthDate.getMonth() + 1).padStart(2, '0');
+                        const day = String(birthDate.getDate()).padStart(2, '0');
+                        document.getElementById('editBirthDate').value = `${year}-${month}-${day}`;
+                    } else {
+                        document.getElementById('editBirthDate').value = '';
+                    }
+                    
+                    document.getElementById('editIdCard').value = studentData.idCard || '';
+                    document.getElementById('editAddress').value = studentData.address || '';
+                    document.getElementById('editEmail').value = studentData.email || '';
+                    document.getElementById('editPhone').value = studentData.phone || '';
+                    
+                    // 院系选择会在loadDepartments中处理
+                });
+            }
+            
+            // 取消编辑
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', function() {
+                    document.getElementById('profileInfoEdit').style.display = 'none';
+                    document.getElementById('profileInfoView').style.display = 'block';
+                });
+            }
+            
+            // 表单提交
+            if (editForm) {
+                editForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    // 禁用提交按钮防止重复提交
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 保存中...';
+                    }
+                    
+                    try {
+                        // 准备更新数据
+                        const updatedData = {
+                            deptId: document.getElementById('editDeptId').value,
+                            birthDate: document.getElementById('editBirthDate').value,
+                            idCard: document.getElementById('editIdCard').value,
+                            address: document.getElementById('editAddress').value,
+                            email: document.getElementById('editEmail').value,
+                            phone: document.getElementById('editPhone').value
+                        };
+                        
+                        console.log('准备更新个人信息:', updatedData);
+                        
+                        // 调用API更新个人信息
+                        await API.student.updateInfo(updatedData);
+                        
+                        window.showToast('个人信息更新成功!', 'success');
+                        
+                        // 重新加载个人信息
+                        loadProfileInfo();
+                        
+                        // 切换回查看模式
+                        document.getElementById('profileInfoEdit').style.display = 'none';
+                        document.getElementById('profileInfoView').style.display = 'block';
+                        
+                    } catch (error) {
+                        console.error('更新个人信息失败:', error);
+                        window.showToast('更新个人信息失败: ' + error.message, 'danger');
+                    } finally {
+                        // 恢复提交按钮状态
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = '保存修改';
+                        }
+                    }
+                });
+            }
+            
+            // 密码修改表单
+            const passwordForm = document.getElementById('changePasswordForm');
+            if (passwordForm) {
+                passwordForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    const currentPassword = document.getElementById('currentPassword').value;
+                    const newPassword = document.getElementById('newPassword').value;
+                    const confirmPassword = document.getElementById('confirmPassword').value;
+                    
+                    // 验证新密码
+                    if (newPassword.length < 6) {
+                        window.showToast('新密码长度至少为6位', 'warning');
+                        return;
+                    }
+                    
+                    if (!/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/.test(newPassword)) {
+                        window.showToast('新密码必须包含字母和数字', 'warning');
+                        return;
+                    }
+                    
+                    if (newPassword !== confirmPassword) {
+                        window.showToast('两次输入的密码不一致', 'warning');
+                        return;
+                    }
+                    
+                    // 禁用提交按钮防止重复提交
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 处理中...';
+                    }
+                    
+                    try {
+                        // 调用API更改密码
+                        await API.student.changePassword(currentPassword, newPassword);
+                        
+                        window.showToast('密码修改成功!', 'success');
+                        
+                        // 清空表单
+                        this.reset();
+                        
+                    } catch (error) {
+                        console.error('修改密码失败:', error);
+                        window.showToast('修改密码失败: ' + error.message, 'danger');
+                    } finally {
+                        // 恢复提交按钮状态
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = '更改密码';
+                        }
+                    }
+                });
+            }
+        }
+        
+        // 加载院系数据
+        async function loadDepartments() {
+            try {
+                const deptSelect = document.getElementById('editDeptId');
+                if (!deptSelect) return;
+                
+                // 清空现有选项
+                deptSelect.innerHTML = '<option value="">-- 请选择院系 --</option>';
+                
+                // 获取当前用户信息
+                const userData = JSON.parse(localStorage.getItem('user') || '{}');
+                const currentDeptId = userData.deptId;
+                
+                // 获取所有院系
+                const departments = await API.department.list();
+                console.log('获取到院系数据:', departments);
+                
+                if (!departments || !departments.length) {
+                    console.warn('没有获取到院系数据');
+                    return;
+                }
+                
+                // 添加院系选项
+                departments.forEach(dept => {
+                    const option = document.createElement('option');
+                    option.value = dept.deptId;
+                    option.textContent = dept.deptName;
+                    
+                    // 设置当前院系为选中状态
+                    if (dept.deptId === currentDeptId) {
+                        option.selected = true;
+                    }
+                    
+                    deptSelect.appendChild(option);
+                });
+                
+            } catch (error) {
+                console.error('加载院系数据失败:', error);
+            }
+        }
+        
+        return loadProfileInfo;
     }
-    
+
+    // 替换原有的loadProfileInfo函数
+    window.loadProfileInfo = replaceLoadProfileInfo();
+
     function getRandomColor(idSeed) { // Accept any seed
         const colors = ['#007bff', '#6f42c1', '#e83e8c', '#fd7e14', '#20c997', '#17a2b8', '#6610f2', '#28a745', '#dc3545', '#ffc107', '#0dcaf0', '#d63384'];
         let hash = 0;

@@ -105,6 +105,39 @@ const API = {
             });
             
             return API.handleResponse(response);
+        },
+        
+        // 更新学生个人信息
+        updateInfo: async function(studentData) {
+            console.log(`更新个人信息:`, studentData);
+            const response = await fetch(`${API.baseUrl}/students/updateInfo`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(studentData),
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
+        },
+        
+        // 修改密码
+        changePassword: async function(currentPassword, newPassword) {
+            console.log(`修改密码`);
+            const response = await fetch(`${API.baseUrl}/students/changePassword`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    currentPassword: currentPassword,
+                    newPassword: newPassword
+                }),
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         }
     },
     
@@ -347,10 +380,23 @@ const API = {
         
         recommendations: async function(type = 'all', limit = 10) {
             let url = `${API.baseUrl}/friendship/recommendations`;
+            
+            // 构建查询参数
+            const params = new URLSearchParams();
             if (type !== 'all') {
-                url += `?type=${type}&limit=${limit}`;
+                params.append('type', type);
+            }
+            if (limit) {
+                params.append('limit', limit);
             }
             
+            // 添加查询参数到URL
+            const queryString = params.toString();
+            if (queryString) {
+                url += `?${queryString}`;
+            }
+            
+            console.log(`获取好友推荐，类型: ${type}, 限制: ${limit}`);
             const response = await fetch(url, {
                 method: 'GET',
                 credentials: 'include'
@@ -481,7 +527,7 @@ const API = {
         },
         
         unread: async function() {
-            const response = await fetch(`${API.baseUrl}/messages/unread`, {
+            const response = await fetch(`${API.baseUrl}/message/unread`, {
                 method: 'GET',
                 credentials: 'include'
             });
@@ -490,7 +536,7 @@ const API = {
         },
         
         unreadCount: async function() {
-            const response = await fetch(`${API.baseUrl}/messages/unread_count`, {
+            const response = await fetch(`${API.baseUrl}/message/unread_count`, {
                 method: 'GET',
                 credentials: 'include'
             });
@@ -499,7 +545,7 @@ const API = {
         },
         
         markAsRead: async function(messageId) {
-            const response = await fetch(`${API.baseUrl}/messages/read/${messageId}`, {
+            const response = await fetch(`${API.baseUrl}/message/read/${messageId}`, {
                 method: 'PUT',
                 credentials: 'include'
             });
@@ -508,7 +554,7 @@ const API = {
         },
         
         delete: async function(messageId) {
-            const response = await fetch(`${API.baseUrl}/messages/delete/${messageId}`, {
+            const response = await fetch(`${API.baseUrl}/message/delete/${messageId}`, {
                 method: 'DELETE',
                 credentials: 'include'
             });
@@ -526,5 +572,30 @@ const API = {
         }
         
         return responseData.data;
+    },
+    
+    // 院系API
+    department: {
+        // 获取所有院系
+        list: async function() {
+            console.log(`获取所有院系`);
+            const response = await fetch(`${API.baseUrl}/department/list`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
+        },
+        
+        // 获取院系详情
+        get: async function(deptId) {
+            console.log(`获取院系信息: ${deptId}`);
+            const response = await fetch(`${API.baseUrl}/department/${deptId}`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
+        }
     }
 }; 

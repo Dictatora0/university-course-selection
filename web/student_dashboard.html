@@ -477,21 +477,177 @@
             
             <!-- 个人信息 -->
             <section id="profile" class="tab-content">
-                    <h2 class="mb-4">个人信息</h2>
-                    <div class="card">
-                        <div class="card-body">
-                            <dl class="row">
-                                <dt class="col-sm-3">学号:</dt><dd class="col-sm-9" id="profileStudentId">-</dd>
-                                <dt class="col-sm-3">姓名:</dt><dd class="col-sm-9" id="profileName">-</dd>
-                                <dt class="col-sm-3">院系:</dt><dd class="col-sm-9" id="profileDeptName">-</dd>
-                                <dt class="col-sm-3">出生日期:</dt><dd class="col-sm-9" id="profileBirthDate">-</dd>
-                                <dt class="col-sm-3">身份证号:</dt><dd class="col-sm-9" id="profileIdCard">-</dd>
-                                <dt class="col-sm-3">地址:</dt><dd class="col-sm-9" id="profileAddress">-</dd>
-                                <dt class="col-sm-3">账户余额:</dt><dd class="col-sm-9" id="profileBalance">-</dd>
-                            </dl>
+                <h2 class="mb-4"><i class="bi bi-person-circle"></i> 个人信息</h2>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card mb-4">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0">个人档案</h5>
+                            </div>
+                            <div class="card-body text-center">
+                                <div class="profile-avatar mb-3" style="margin: 0 auto; width: 100px; height: 100px; border-radius: 50%; background-color: #6f42c1; color: white; font-size: 2.5rem; display: flex; align-items: center; justify-content: center;">
+                                    <span id="profileAvatar">?</span>
+                                </div>
+                                <h4 id="profileNameLarge">加载中...</h4>
+                                <p class="text-muted" id="profileDeptNameLarge">学院/系别</p>
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-outline-primary" id="editProfileBtn">
+                                        <i class="bi bi-pencil-square"></i> 编辑个人信息
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-light">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <i class="bi bi-wallet2 text-success"></i> 账户余额
+                                    </div>
+                                    <strong id="profileBalanceDisplay">¥ 0.00</strong>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </section>
+                    
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <ul class="nav nav-tabs card-header-tabs" id="profileTabs">
+                                    <li class="nav-item">
+                                        <a class="nav-link active" data-bs-toggle="tab" href="#basicInfo">基本信息</a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" data-bs-toggle="tab" href="#accountSettings">账户设置</a>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="card-body">
+                                <div class="tab-content">
+                                    <!-- 基本信息 -->
+                                    <div class="tab-pane fade show active" id="basicInfo">
+                                        <!-- 用于显示个人信息的视图 -->
+                                        <div id="profileInfoView">
+                                            <dl class="row">
+                                                <dt class="col-sm-3">学号:</dt>
+                                                <dd class="col-sm-9" id="profileStudentId">-</dd>
+                                                
+                                                <dt class="col-sm-3">姓名:</dt>
+                                                <dd class="col-sm-9" id="profileName">-</dd>
+                                                
+                                                <dt class="col-sm-3">院系:</dt>
+                                                <dd class="col-sm-9" id="profileDeptName">-</dd>
+                                                
+                                                <dt class="col-sm-3">出生日期:</dt>
+                                                <dd class="col-sm-9" id="profileBirthDate">-</dd>
+                                                
+                                                <dt class="col-sm-3">身份证号:</dt>
+                                                <dd class="col-sm-9" id="profileIdCard">-</dd>
+                                                
+                                                <dt class="col-sm-3">地址:</dt>
+                                                <dd class="col-sm-9" id="profileAddress">-</dd>
+                                                
+                                                <dt class="col-sm-3">电子邮箱:</dt>
+                                                <dd class="col-sm-9" id="profileEmail">-</dd>
+                                                
+                                                <dt class="col-sm-3">手机号码:</dt>
+                                                <dd class="col-sm-9" id="profilePhone">-</dd>
+                                                
+                                                <dt class="col-sm-3">账户余额:</dt>
+                                                <dd class="col-sm-9" id="profileBalance">-</dd>
+                                            </dl>
+                                        </div>
+                                        
+                                        <!-- 用于编辑个人信息的表单 -->
+                                        <div id="profileInfoEdit" style="display: none;">
+                                            <form id="editProfileForm">
+                                                <div class="row mb-3">
+                                                    <label for="editName" class="col-sm-3 col-form-label">姓名:</label>
+                                                    <div class="col-sm-9">
+                                                        <input type="text" class="form-control" id="editName" readonly>
+                                                        <small class="form-text text-muted">姓名不可修改，如需修改请联系管理员</small>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="row mb-3">
+                                                    <label for="editDeptId" class="col-sm-3 col-form-label">院系:</label>
+                                                    <div class="col-sm-9">
+                                                        <select class="form-select" id="editDeptId">
+                                                            <!-- 院系选项将由JS动态填充 -->
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="row mb-3">
+                                                    <label for="editBirthDate" class="col-sm-3 col-form-label">出生日期:</label>
+                                                    <div class="col-sm-9">
+                                                        <input type="date" class="form-control" id="editBirthDate">
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="row mb-3">
+                                                    <label for="editIdCard" class="col-sm-3 col-form-label">身份证号:</label>
+                                                    <div class="col-sm-9">
+                                                        <input type="text" class="form-control" id="editIdCard">
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="row mb-3">
+                                                    <label for="editAddress" class="col-sm-3 col-form-label">地址:</label>
+                                                    <div class="col-sm-9">
+                                                        <input type="text" class="form-control" id="editAddress">
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="row mb-3">
+                                                    <label for="editEmail" class="col-sm-3 col-form-label">电子邮箱:</label>
+                                                    <div class="col-sm-9">
+                                                        <input type="email" class="form-control" id="editEmail">
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="row mb-3">
+                                                    <label for="editPhone" class="col-sm-3 col-form-label">手机号码:</label>
+                                                    <div class="col-sm-9">
+                                                        <input type="tel" class="form-control" id="editPhone">
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="d-flex justify-content-end">
+                                                    <button type="button" class="btn btn-secondary me-2" id="cancelEditBtn">取消</button>
+                                                    <button type="submit" class="btn btn-primary">保存修改</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 账户设置 -->
+                                    <div class="tab-pane fade" id="accountSettings">
+                                        <form id="changePasswordForm">
+                                            <div class="mb-3">
+                                                <label for="currentPassword" class="form-label">当前密码</label>
+                                                <input type="password" class="form-control" id="currentPassword" required>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label for="newPassword" class="form-label">新密码</label>
+                                                <input type="password" class="form-control" id="newPassword" required>
+                                                <div class="form-text">密码长度至少为6位，包含字母和数字</div>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label for="confirmPassword" class="form-label">确认新密码</label>
+                                                <input type="password" class="form-control" id="confirmPassword" required>
+                                            </div>
+                                            
+                                            <div class="d-grid">
+                                                <button type="submit" class="btn btn-primary">更改密码</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
             </main>
         </div>
     </div>
@@ -524,25 +680,34 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="transferModalLabel">转账给 <span id="transferRecipientName"></span></h5>
+                    <h5 class="modal-title" id="transferModalLabel">向 <span id="transferRecipientName"></span> 转账</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
+                </div>
                 <div class="modal-body">
-                    <form id="transferForm">
-                        <input type="hidden" id="transferRecipientId">
+                    <form id="transferForm_modal">
+                        <input type="hidden" id="transferRecipientId" value="">
+                        
+                        <!-- 警告提示区域 -->
+                        <div class="alert alert-warning alert-dismissible fade show" role="alert" id="transferWarningAlert" style="display: none;">
+                            <!-- 将由JS动态填充内容 -->
+                        </div>
+                        
                         <div class="mb-3">
-                            <label for="transferAmountInput" class="form-label">转账金额 (元)</label>
-                            <input type="number" class="form-control" id="transferAmountInput_modal" min="0.01" step="0.01" required placeholder="0.00">
-                    </div>
-                         <div class="mb-3">
+                            <label for="transferAmountInput_modal" class="form-label">转账金额</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" class="form-control" id="transferAmountInput_modal" step="0.01" min="0.01" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
                             <label for="transferNotes" class="form-label">备注 (可选)</label>
-                            <input type="text" class="form-control" id="transferNotes" placeholder="最多50字">
-                    </div>
+                            <textarea class="form-control" id="transferNotes" rows="3" placeholder="添加转账备注..."></textarea>
+                        </div>
                     </form>
-                    </div>
+                </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="submit" form="transferForm" class="btn btn-primary" id="confirmTransferBtn_modal">确认转账</button>
+                    <button type="button" class="btn btn-primary" id="confirmTransferBtn_modal">确认转账</button>
                 </div>
             </div>
         </div>

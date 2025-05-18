@@ -17,7 +17,7 @@ public class StudentDAO {
      * 通过学号查询学生
      */
     public Student findById(String studentId) {
-        String sql = "SELECT * FROM student WHERE student_id = ?";
+        String sql = "SELECT s.*, d.dept_name FROM student s LEFT JOIN department d ON s.dept_id = d.dept_id WHERE s.student_id = ?";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             
@@ -28,6 +28,12 @@ public class StudentDAO {
                     student.setStudentId(rs.getString("student_id"));
                     student.setName(rs.getString("name"));
                     student.setPassword(rs.getString("password"));
+                    student.setDeptId(rs.getString("dept_id"));
+                    student.setDeptName(rs.getString("dept_name"));
+                    student.setBirthDate(rs.getDate("birth_date"));
+                    student.setIdCard(rs.getString("id_card"));
+                    student.setAddress(rs.getString("address"));
+                    student.setCreatedAt(rs.getTimestamp("created_at"));
                     if (hasColumn(rs, "balance")) {
                         student.setBalance(rs.getDouble("balance"));
                     }
@@ -261,36 +267,72 @@ public class StudentDAO {
         boolean success = false;
         
         try {
+            System.out.println("[StudentDAO.update] 开始更新学生信息，学号：" + student.getStudentId());
             conn = DBConnection.getConnection();
-            StringBuilder sqlBuilder = new StringBuilder("UPDATE Student SET name = ?, birth_date = ?, id_card = ?, address = ? ");
+            // 构建基础的UPDATE语句，包含所有可更新的字段
+            StringBuilder sqlBuilder = new StringBuilder("UPDATE Student SET name = ?, birth_date = ?, id_card = ?, address = ?, dept_id = ? ");
             
             // 检查是否需要更新密码
             boolean updatePassword = student.getPassword() != null && !student.getPassword().isEmpty();
+            System.out.println("[StudentDAO.update] 是否需要更新密码: " + updatePassword);
             if (updatePassword) {
                 sqlBuilder.append(", password = ? ");
             }
             sqlBuilder.append("WHERE student_id = ?");
             
-            pstmt = conn.prepareStatement(sqlBuilder.toString());
-            pstmt.setString(1, student.getName());
-            pstmt.setDate(2, student.getBirthDate() != null ? new java.sql.Date(student.getBirthDate().getTime()) : null);
-            pstmt.setString(3, student.getIdCard());
-            pstmt.setString(4, student.getAddress());
+            System.out.println("[StudentDAO.update] 构建的SQL语句: " + sqlBuilder.toString());
             
-            int parameterIndex = 5;
+            pstmt = conn.prepareStatement(sqlBuilder.toString());
+            int parameterIndex = 1;
+            pstmt.setString(parameterIndex++, student.getName());
+            System.out.println("[StudentDAO.update] 设置name参数: " + student.getName());
+            
+            java.sql.Date sqlBirthDate = student.getBirthDate() != null ? new java.sql.Date(student.getBirthDate().getTime()) : null;
+            pstmt.setDate(parameterIndex++, sqlBirthDate);
+            System.out.println("[StudentDAO.update] 设置birth_date参数: " + sqlBirthDate);
+            
+            pstmt.setString(parameterIndex++, student.getIdCard());
+            System.out.println("[StudentDAO.update] 设置id_card参数: " + student.getIdCard());
+            
+            pstmt.setString(parameterIndex++, student.getAddress());
+            System.out.println("[StudentDAO.update] 设置address参数: " + student.getAddress());
+            
+            pstmt.setString(parameterIndex++, student.getDeptId());
+            System.out.println("[StudentDAO.update] 设置dept_id参数: " + student.getDeptId());
+            
             if (updatePassword) {
                 String hashedPassword = PasswordUtil.hashPassword(student.getPassword());
                 if (hashedPassword == null) {
-                     System.err.println("Password hashing failed during update for student: " + student.getStudentId());
+                     System.err.println("[StudentDAO.update] 密码哈希失败，学号: " + student.getStudentId());
                      return false; 
                 }
                 pstmt.setString(parameterIndex++, hashedPassword);
+                System.out.println("[StudentDAO.update] 设置password参数: " + hashedPassword.substring(0, Math.min(10, hashedPassword.length())) + "...");
             }
-            pstmt.setString(parameterIndex, student.getStudentId());
+            pstmt.setString(parameterIndex, student.getStudentId()); // WHERE子句的student_id
+            System.out.println("[StudentDAO.update] 设置WHERE条件student_id: " + student.getStudentId());
             
-            int rowsAffected = pstmt.executeUpdate();
-            success = rowsAffected > 0;
+            System.out.println("[StudentDAO.update] 准备执行SQL: " + pstmt.toString());
+            
+            try {
+                int rowsAffected = pstmt.executeUpdate();
+                System.out.println("[StudentDAO.update] 执行结果: 影响的行数 = " + rowsAffected);
+                success = rowsAffected > 0;
+            } catch (SQLException sqlEx) {
+                System.err.println("[StudentDAO.update] SQL执行异常: " + sqlEx.getMessage());
+                System.err.println("[StudentDAO.update] SQLState: " + sqlEx.getSQLState());
+                System.err.println("[StudentDAO.update] Error Code: " + sqlEx.getErrorCode());
+                sqlEx.printStackTrace();
+                throw sqlEx; // 重新抛出以便外层捕获
+            }
+            
+            if(success){
+                System.out.println("[StudentDAO.update] 学生信息更新成功，学号: " + student.getStudentId());
+            } else {
+                System.err.println("[StudentDAO.update] 学生信息更新失败，没有影响的行，学号: " + student.getStudentId());
+            }
         } catch (SQLException e) {
+            System.err.println("[StudentDAO.update] SQLException for student "+ student.getStudentId() + ": " + e.getMessage());
             e.printStackTrace();
         } finally {
             DBConnection.close(conn, pstmt, null);

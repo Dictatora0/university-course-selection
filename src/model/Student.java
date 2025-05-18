@@ -30,6 +30,8 @@ public class Student {
     private String recommendReason; // 推荐理由
     @SerializedName("reject_time")
     private Timestamp rejectTime; // 拒绝时间
+    private String email; // 电子邮箱
+    private String phone; // 手机号码
     
     public Student() {
     }
@@ -149,6 +151,22 @@ public class Student {
         this.rejectTime = rejectTime;
     }
     
+    public String getEmail() {
+        return email;
+    }
+    
+    public void setEmail(String email) {
+        this.email = email;
+    }
+    
+    public String getPhone() {
+        return phone;
+    }
+    
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+    
     @Override
     public String toString() {
         return "Student{" +
@@ -163,6 +181,8 @@ public class Student {
                 ", balance=" + balance +
                 ", recommendReason='" + recommendReason + '\'' +
                 ", rejectTime=" + rejectTime +
+                ", email='" + email + '\'' +
+                ", phone='" + phone + '\'' +
                 ", createdAt=" + createdAt +
                 '}';
     }
