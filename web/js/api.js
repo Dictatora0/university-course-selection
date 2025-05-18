@@ -192,20 +192,34 @@ const API = {
             return API.handleResponse(response);
         },
         transfer: async function(toStudentId, amount, description = '') {
+            console.log(`发起转账请求: 转给 ${toStudentId}, 金额 ${amount}, 描述: ${description}`);
+            
+            // 获取当前用户信息，用于记录转账发送方
+            const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+            
+            const requestData = {
+                toStudentId: toStudentId,
+                amount: amount,
+                description: description,
+                // 添加额外信息，帮助后端记录完整的转账信息
+                fromStudentId: currentUser.studentId,
+                fromStudentName: currentUser.name
+            };
+            
+            console.log("转账请求数据:", requestData);
+            
             const response = await fetch(`${API.baseUrl}/payment/transfer`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ 
-                    toStudentId: toStudentId,
-                    amount: amount,
-                    description: description
-                }),
+                body: JSON.stringify(requestData),
                 credentials: 'include'
             });
             
-            return API.handleResponse(response);
+            const result = await API.handleResponse(response);
+            console.log("转账响应数据:", result);
+            return result;
         }
     },
     

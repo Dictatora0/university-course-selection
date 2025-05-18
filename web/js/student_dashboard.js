@@ -448,50 +448,94 @@ document.addEventListener('DOMContentLoaded', function() {
             const currentUserId = currentUser.studentId;
             
             console.log("处理交易记录，当前用户ID:", currentUserId);
+            console.log("交易记录原始数据:", transactions);
             
-            transactions.forEach(t => {
+            transactions.forEach((t, index) => {
+                console.log(`处理第${index+1}条交易记录:`, t);
+                
+                // 规范化字段名（处理可能的不一致）
+                const transaction = {
+                    transactionId: t.transaction_id || t.transactionId,
+                    type: t.type,
+                    amount: parseFloat(t.amount || 0),
+                    fromStudentId: t.from_student_id || t.fromStudentId,
+                    fromStudentName: t.from_student_name || t.fromStudentName,
+                    toStudentId: t.to_student_id || t.toStudentId,
+                    toStudentName: t.to_student_name || t.toStudentName,
+                    description: t.description,
+                    transactionDate: t.transaction_date || t.transactionDate || new Date()
+                };
+                
+                console.log(`规范化后的交易数据:`, transaction);
+                
                 const item = document.createElement('li');
                 item.className = 'list-group-item d-flex justify-content-between align-items-center';
-                const date = new Date(t.transactionDate).toLocaleString();
+                const date = new Date(transaction.transactionDate).toLocaleString();
                 
-                // 修正判断逻辑：根据交易类型和角色确定是收入还是支出
-                let isPositive = t.type === 'DEPOSIT' || t.type === 'REFUND';
+                // 默认为支出（红色负数）
+                let isPositive = false;
                 
-                // 对于转账类型，需要根据转入/转出方向来判断
-                if (t.type === 'TRANSFER') {
-                    // 如果当前用户是接收方，则显示为正数（收入）
-                    if (t.toStudentId === currentUserId) {
+                // 充值和退款总是收入（绿色正数）
+                if (transaction.type === 'DEPOSIT' || transaction.type === 'REFUND') {
+                    isPositive = true;
+                }
+                // 提现总是支出（红色负数）
+                else if (transaction.type === 'WITHDRAW') {
+                    isPositive = false;
+                }
+                // 对于转账，需要根据当前用户是发送方还是接收方来确定
+                else if (transaction.type === 'TRANSFER') {
+                    // 如果当前用户是接收方，则为收入（绿色正数）
+                    if (transaction.toStudentId && transaction.toStudentId === currentUserId) {
                         isPositive = true;
-                    } 
-                    // 如果当前用户是发送方，则显示为负数（支出）
-                    else if (t.fromStudentId === currentUserId) {
-                        isPositive = false;
+                        console.log(`用户是接收方，显示为收入（绿色正数）`);
                     }
-                    
-                    console.log(`转账记录: ${t.fromStudentId} -> ${t.toStudentId}, 当前用户: ${currentUserId}, 显示正数: ${isPositive}`);
+                    // 如果当前用户是发送方，则为支出（红色负数）
+                    else if (transaction.fromStudentId && transaction.fromStudentId === currentUserId) {
+                        isPositive = false;
+                        console.log(`用户是发送方，显示为支出（红色负数）`);
+                    }
+                    // 如果无法确定角色，则根据描述判断
+                    else {
+                        const desc = (transaction.description || '').toLowerCase();
+                        isPositive = desc.includes('收到') || desc.includes('接收');
+                        console.log(`无法确定角色，根据描述判断为: ${isPositive ? '收入' : '支出'}`);
+                    }
                 }
                 
                 const amountClass = isPositive ? 'text-success' : 'text-danger';
                 const sign = isPositive ? '+' : '-';
+                const amount = Math.abs(transaction.amount).toFixed(2);
                 
-                // 构建描述文本，为转账提供更明确的方向说明
-                let description = t.description || '无描述';
-                if (t.type === 'TRANSFER') {
-                    if (t.toStudentId === currentUserId) {
-                        description = `来自 ${t.fromStudentName || t.fromStudentId || '未知'} 的转账${description ? ': ' + description : ''}`;
-                    } else if (t.fromStudentId === currentUserId) {
-                        description = `转账给 ${t.toStudentName || t.toStudentId || '未知'}${description ? ': ' + description : ''}`;
+                // 构建描述文本
+                let description = transaction.description || '无描述';
+                if (transaction.type === 'TRANSFER') {
+                    if (transaction.toStudentId === currentUserId) {
+                        const fromName = transaction.fromStudentName || transaction.fromStudentId || '未知用户';
+                        description = `来自 ${fromName} 的转账${description ? ': ' + description : ''}`;
+                    } else if (transaction.fromStudentId === currentUserId) {
+                        const toName = transaction.toStudentName || transaction.toStudentId || '未知用户';
+                        description = `转账给 ${toName}${description ? ': ' + description : ''}`;
                     }
+                }
+                
+                // 翻译交易类型为中文
+                let typeText = transaction.type;
+                switch (transaction.type) {
+                    case 'DEPOSIT': typeText = '充值'; break;
+                    case 'WITHDRAW': typeText = '提现'; break;
+                    case 'TRANSFER': typeText = '转账'; break;
+                    case 'REFUND': typeText = '退款'; break;
                 }
                 
                 item.innerHTML = `
                 <div>
-                        <strong class="d-block">${t.type}</strong>
-                        <small class="text-muted">${description}</small>
+                    <strong class="d-block">${typeText}</strong>
+                    <small class="text-muted">${description}</small>
                 </div>
-                    <div>
-                        <span class="${amountClass} fw-bold me-2">${sign}${parseFloat(t.amount).toFixed(2)}</span>
-                        <small class="text-muted">${date}</small>
+                <div>
+                    <span class="${amountClass} fw-bold me-2">${sign}${amount}</span>
+                    <small class="text-muted">${date}</small>
                 </div>
                 `;
                 listElement.appendChild(item);
@@ -1102,24 +1146,46 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (typeof API.payment.transfer !== 'function') {
                     throw new Error('API.payment.transfer 函数未定义。');
                 }
-                await API.payment.transfer(recipientId, amountVal, notesVal); 
+                
+                // 显示处理中状态
+                newConfirmBtn.disabled = true;
+                newConfirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 处理中...';
+                
+                const result = await API.payment.transfer(recipientId, amountVal, notesVal); 
+                console.log("转账结果:", result);
+                
                 window.showToast(`向 ${recipientName} 转账 ${amountVal.toFixed(2)} 元成功!`, 'success');
+                
+                // 刷新余额和交易记录
                 loadBalance(); 
                 loadTransactions(); 
                 
+                // 同时发送一条消息通知对方
                 const transferMessage = `我已向你转账 ¥${amountVal.toFixed(2)}。${notesVal ? `备注: ${notesVal}` : ''}`;
                 await API.message.send(recipientId, transferMessage);
                 
+                // 如果聊天窗口打开，刷新消息
                 if (document.getElementById('chatWindow')?.style.display === 'flex' && currentChatFriendId === recipientId) {
                      loadAndDisplayMessages(recipientId, 'chatWindowMessages', false);
                 }
                 if (document.getElementById('messages')?.classList.contains('active') && currentChatFriendId === recipientId) {
                     loadAndDisplayMessages(recipientId, 'mainChatMessagesContainer', false);
                 }
+                
+                // 关闭模态框
                 modal.hide();
+                
+                // 重置按钮状态
+                newConfirmBtn.disabled = false;
+                newConfirmBtn.innerHTML = '确认转账';
+                
             } catch (error) {
                 console.error("转账失败:", error);
                 window.showToast(`转账失败: ${error.message}`, 'danger');
+                
+                // 重置按钮状态
+                newConfirmBtn.disabled = false;
+                newConfirmBtn.innerHTML = '确认转账';
             }
         });
         modal.show();
