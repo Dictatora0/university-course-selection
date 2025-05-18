@@ -173,7 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadFriendsAndRecommendations();
                 break;
             case 'messages':
-                loadRecentContacts(); // Will use mock if API not ready
+                loadRecentContacts();
                 // Clear main chat area when switching to messages tab initially
                 const mainChatContainer = document.getElementById('mainChatMessagesContainer');
                 if(mainChatContainer) mainChatContainer.innerHTML = '<p class="text-center my-auto text-muted">选择一个联系人开始聊天</p>';
@@ -442,19 +442,53 @@ document.addEventListener('DOMContentLoaded', function() {
                 listElement.innerHTML = '<li class="list-group-item text-center">暂无交易记录</li>';
                 return;
             }
+            
+            // 从本地存储获取当前用户ID，用于判断转账方向
+            const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+            const currentUserId = currentUser.studentId;
+            
+            console.log("处理交易记录，当前用户ID:", currentUserId);
+            
             transactions.forEach(t => {
-            const item = document.createElement('li');
-            item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                const item = document.createElement('li');
+                item.className = 'list-group-item d-flex justify-content-between align-items-center';
                 const date = new Date(t.transactionDate).toLocaleString();
-                const isPositive = t.type === 'DEPOSIT' || t.type === 'REFUND';
+                
+                // 修正判断逻辑：根据交易类型和角色确定是收入还是支出
+                let isPositive = t.type === 'DEPOSIT' || t.type === 'REFUND';
+                
+                // 对于转账类型，需要根据转入/转出方向来判断
+                if (t.type === 'TRANSFER') {
+                    // 如果当前用户是接收方，则显示为正数（收入）
+                    if (t.toStudentId === currentUserId) {
+                        isPositive = true;
+                    } 
+                    // 如果当前用户是发送方，则显示为负数（支出）
+                    else if (t.fromStudentId === currentUserId) {
+                        isPositive = false;
+                    }
+                    
+                    console.log(`转账记录: ${t.fromStudentId} -> ${t.toStudentId}, 当前用户: ${currentUserId}, 显示正数: ${isPositive}`);
+                }
+                
                 const amountClass = isPositive ? 'text-success' : 'text-danger';
                 const sign = isPositive ? '+' : '-';
                 
-            item.innerHTML = `
+                // 构建描述文本，为转账提供更明确的方向说明
+                let description = t.description || '无描述';
+                if (t.type === 'TRANSFER') {
+                    if (t.toStudentId === currentUserId) {
+                        description = `来自 ${t.fromStudentName || t.fromStudentId || '未知'} 的转账${description ? ': ' + description : ''}`;
+                    } else if (t.fromStudentId === currentUserId) {
+                        description = `转账给 ${t.toStudentName || t.toStudentId || '未知'}${description ? ': ' + description : ''}`;
+                    }
+                }
+                
+                item.innerHTML = `
                 <div>
                         <strong class="d-block">${t.type}</strong>
-                        <small class="text-muted">${t.description || '无描述'}</small>
-                    </div>
+                        <small class="text-muted">${description}</small>
+                </div>
                     <div>
                         <span class="${amountClass} fw-bold me-2">${sign}${parseFloat(t.amount).toFixed(2)}</span>
                         <small class="text-muted">${date}</small>
@@ -790,12 +824,61 @@ document.addEventListener('DOMContentLoaded', function() {
         if(!listElement) return;
         listElement.innerHTML = '<p class="list-group-item text-muted text-center">加载中...</p>'; // Loading state
         try {
-            // const contacts = await API.message.getRecentContacts(); // Real API call
-             mockLoadRecentContacts(); // Using mock for now
+            console.log("尝试获取最近联系人列表...");
+            const contacts = await API.message.getRecentContacts();
+            console.log("获取到的联系人:", contacts);
+            
+            if (!contacts || contacts.length === 0) {
+                listElement.innerHTML = '<p class="list-group-item text-muted text-center">没有最近联系人</p>';
+                return;
+            }
+            
+            listElement.innerHTML = '';
+            contacts.forEach(contact => {
+                const item = document.createElement('a');
+                item.href = '#';
+                item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+                const avatarLetter = (contact.name || 'C').charAt(0).toUpperCase();
+                const avatarBgColor = getRandomColor(contact.studentId || Math.random().toString());
+                
+                // 格式化最后一条消息时间
+                let timeDisplay = '';
+                if (contact.lastMessageTime) {
+                    const msgDate = new Date(contact.lastMessageTime);
+                    const now = new Date();
+                    if (msgDate.toDateString() === now.toDateString()) {
+                        // 如果是今天，则显示时间
+                        timeDisplay = msgDate.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
+                    } else {
+                        // 否则显示日期
+                        timeDisplay = msgDate.toLocaleDateString('zh-CN', {month: 'numeric', day: 'numeric'});
+                    }
+                }
+                
+                item.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <div class="friend-avatar me-2" style="background-color: ${avatarBgColor}; width: 40px; height: 40px; font-size: 0.9rem;">${avatarLetter}</div>
+                        <div class="flex-grow-1">
+                            <strong class="d-block">${contact.name}</strong>
+                            <small class="d-block text-muted text-truncate" style="max-width: 150px;">${contact.lastMessage ? contact.lastMessage : '暂无消息'}</small>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-column align-items-end">
+                        <small class="text-muted">${timeDisplay}</small>
+                        ${contact.unreadCount > 0 ? `<span class="badge bg-danger rounded-pill mt-1">${contact.unreadCount}</span>` : ''}
+                    </div>
+                `;
+                item.onclick = (e) => {
+                    e.preventDefault();
+                    openMainChat(contact.studentId, contact.name);
+                };
+                listElement.appendChild(item);
+            });
         } catch (error) {
             console.error('加载最近联系人失败:', error);
             listElement.innerHTML = '<p class="list-group-item text-danger text-center">加载联系人失败</p>';
-            mockLoadRecentContacts(); // Fallback to mock on error
+            // 如果API调用失败，则使用模拟数据作为备用
+            mockLoadRecentContacts();
         }
     }
     
@@ -877,12 +960,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         try {
-            const messages = await API.message.getConversation(friendId);
+            const response = await API.message.getConversation(friendId);
             container.innerHTML = ''; 
-            if (!messages || messages.length === 0) {
+            
+            // 修正: 从响应中提取消息数组
+            // 检查响应格式并正确提取消息数组
+            const messages = response.data || response;
+            
+            console.log("收到的消息数据:", messages);
+            
+            if (!messages || !Array.isArray(messages) || messages.length === 0) {
                 container.innerHTML = '<p class="text-center my-auto text-muted">暂无聊天记录</p>';
                 return;
             }
+            
             const currentUserId = user.studentId;
             messages.forEach(msg => {
                 appendMessageToContainer(msg, currentUserId, container);

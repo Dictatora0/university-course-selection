@@ -1,0 +1,114 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+Cursor Rules for 在线选课系统
+
+项目基本信息
+	•	项目名：在线选课系统
+	•	语言：Java
+	•	框架/库：
+	•	Servlet
+	•	JDBC
+	•	Tomcat
+	•	MySQL
+	•	入口文件：
+	•	@src/servlet/StudentServlet.java
+	•	@src/servlet/CourseServlet.java
+
+项目功能要求
+
+用户管理
+	•	学生注册、登录、退出登录
+	•	修改密码、更新个人信息
+	•	用户登录使用 Session 管理身份状态
+
+课程系统
+	•	浏览所有课程（分页或筛选）
+	•	查看课程详情（名称、学分、容量等）
+	•	选课、退课操作（需判断容量、重复选课）
+
+我的课程
+	•	查看当前选中课程
+	•	查看已修课程（可加“成绩”字段）
+
+社交功能
+	•	添加/删除好友（需要好友验证机制）
+	•	接收/拒绝好友请求
+	•	好友列表查看
+	•	好友之间即时聊天（简单实现消息队列）
+
+财务功能
+	•	学生可充值账户余额
+	•	提现功能（需余额校验）
+	•	转账功能（输入对方学号和金额）
+	•	查询交易记录与余额明细
+	•	转账预警机制（如金额过大警告）
+	•	管理员可操作后台录入课程、成绩等
+
+🧩 项目结构建议
+	•	@src/dao/：DAO 层，负责数据库交互
+	•	@src/model/：实体类，如 Student.java, Course.java
+	•	@src/service/：业务逻辑封装，如选课、转账等
+	•	@src/servlet/：控制器，处理 HTTP 请求
+	•	@src/util/：工具类，如 DBConnection、日期工具等
+	•	@config/config.properties：统一配置管理
+	•	@web/：前端 JSP 页面、静态资源等
+
+
+🔧 编码与风格规则
+	•	代码风格：Java 标准规范
+	•	Java版本：推荐使用 Java 8 以上
+	•	架构模式：MVC
+	•	命名规范：
+	•	类：PascalCase（如 StudentService）
+	•	方法/变量：camelCase（如 getStudentList()）
+	•	Servlet 文件名：以 Servlet 结尾（如 LoginServlet.java）
+
+
+ 功能开发流程（建议）
+
+每开发一个功能模块，执行以下流程以保证前后端与数据库协同完整：
+	1.	编写 Servlet + DAO + JSP 页面（或 REST API 返回 JSON）
+	2.	编写对应 curl 语句测试功能，例如：
+
+curl -X POST http://localhost:8080/enroll -d "studentId=1001&courseId=2001"
+curl -X GET  http://localhost:8080/student/courses?studentId=1001
+curl -X POST http://localhost:8080/transfer -d "from=1001&to=1002&amount=50"
+
+
+	3.	查看后端返回内容或浏览器页面，记录异常与错误日志
+	4.	修复前端表单字段错误、后端参数处理逻辑或数据库字段设计
+	5.	回归测试所有受影响接口，直到功能稳定
+
+
+
+ 自动化与调试建议
+	•	on_build_failure:
+	•	自动编译所有 Java 文件
+	•	输出日志并定位错误类/行
+	•	自动检查并修复 import / 包路径 / 类名不一致问题
+	•	on_runtime_error:
+	•	首查 Tomcat 日志：@logs/catalina.out
+	•	查看数据库连接错误信息
+	•	自动建议插入 System.out.println() 或日志记录排查 Servlet 或 DAO 逻辑
+	•	after_fix:
+	•	如果代码/config 更新：
+	•	自动检查 @README.md 是否存在，否则创建
+	•	追加“已实现功能”说明 + 示例 curl 请求 + 更新时间戳（如 2025-05-18）
+
+
+
+ 开发建议
+	•	所有数据库操作使用 PreparedStatement，防 SQL 注入
+	•	所有表单前端字段做基础 JS 校验，后端重复校验
+	•	所有密码字段使用 SHA-256/Bcrypt 加密存储
+	•	所有核心业务日志写入控制台或文件
+	•	统一使用 config.properties 管理数据库、路径、端口等配置
+	•	所有 DAO 接口建议单元测试，Servlet 用 Postman/curl 模拟测试
+
+
+
+如果你需要，我可以生成具体模块的 curl 请求脚本（如注册、登录、选课、转账等）或某一 Servlet + DAO + 数据库表的实现样例。你接下来想先实现哪个功能模块？

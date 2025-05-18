@@ -348,6 +348,36 @@ const API = {
     
     // 消息API
     message: {
+        // 获取最近联系人列表
+        getRecentContacts: async () => {
+            console.log('获取最近联系人列表');
+            try {
+                const response = await fetch(`${API.baseUrl}/message/recent_contacts`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.text();
+                    console.error('API错误:', errorData);
+                    throw new Error(errorData || '获取最近联系人失败');
+                }
+                
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.message || '获取最近联系人失败');
+                }
+                
+                return result.data;
+            } catch (error) {
+                console.error('获取最近联系人失败:', error);
+                throw error;
+            }
+        },
+        
         // 获取与特定用户的聊天记录
         getConversation: async (friendId) => {
             console.log(`获取与 ${friendId} 的聊天记录`);
@@ -410,7 +440,26 @@ const API = {
                     throw new Error(errorData || '发送消息失败');
                 }
                 
-                return await response.json();
+                const result = await response.json();
+                console.log("发送消息API返回结果:", result);
+                
+                if (!result.success) {
+                    throw new Error(result.message || '发送消息失败');
+                }
+                
+                // 获取当前用户信息，用于构建消息对象
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                
+                // 构建一个标准消息对象返回，即使服务器没有返回完整信息
+                return {
+                    messageId: result.data?.messageId || Date.now(),
+                    fromStudentId: user.studentId,
+                    toStudentId: toId,
+                    fromStudentName: user.name,
+                    content: content,
+                    sendTime: new Date(),
+                    read: false
+                };
             } catch (error) {
                 console.error('发送消息失败:', error);
                 throw error;

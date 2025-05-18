@@ -2,6 +2,7 @@ package dao;
 
 import model.Message;
 import model.Student;
+import model.Contact;
 import util.DBConnection;
 
 import java.sql.*;
@@ -186,6 +187,73 @@ public class MessageDAO {
             e.printStackTrace();
         }
         return 0;
+    }
+    
+    /**
+     * 获取与某学生有过消息往来的最近联系人列表
+     * 包括最后一条消息内容和未读消息数
+     */
+    public List<Contact> getRecentContacts(String studentId) {
+        List<Contact> contacts = new ArrayList<>();
+        
+        // 这个SQL查询较复杂，主要目标是：
+        // 1. 找出当前用户最近有消息往来的联系人
+        // 2. 获取每个联系人的最后一条消息
+        // 3. 获取来自每个联系人的未读消息数量
+        String sql = 
+            "WITH recent_contacts AS (" +
+            "  SELECT " +
+            "    CASE " +
+            "      WHEN m.from_student_id = ? THEN m.to_student_id " +
+            "      ELSE m.from_student_id " +
+            "    END AS contact_id, " +
+            "    MAX(m.send_time) AS last_message_time " +
+            "  FROM Message m " +
+            "  WHERE m.from_student_id = ? OR m.to_student_id = ? " +
+            "  GROUP BY contact_id " +
+            "  ORDER BY last_message_time DESC" +
+            ") " +
+            "SELECT " +
+            "  rc.contact_id, " +
+            "  s.name AS contact_name, " +
+            "  s.dept_name, " +
+            "  lm.content AS last_message, " +
+            "  lm.send_time AS last_message_time, " +
+            "  (SELECT COUNT(*) FROM Message " +
+            "   WHERE from_student_id = rc.contact_id AND to_student_id = ? AND is_read = FALSE) AS unread_count " +
+            "FROM recent_contacts rc " +
+            "JOIN Student s ON rc.contact_id = s.student_id " +
+            "JOIN Message lm ON ((lm.from_student_id = rc.contact_id AND lm.to_student_id = ?) " +
+            "                 OR (lm.from_student_id = ? AND lm.to_student_id = rc.contact_id)) " +
+            "                AND lm.send_time = rc.last_message_time";
+            
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            
+            pstmt.setString(1, studentId);
+            pstmt.setString(2, studentId);
+            pstmt.setString(3, studentId);
+            pstmt.setString(4, studentId);
+            pstmt.setString(5, studentId);
+            pstmt.setString(6, studentId);
+            
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    Contact contact = new Contact();
+                    contact.setStudentId(rs.getString("contact_id"));
+                    contact.setName(rs.getString("contact_name"));
+                    contact.setDeptName(rs.getString("dept_name"));
+                    contact.setLastMessage(rs.getString("last_message"));
+                    contact.setLastMessageTime(rs.getTimestamp("last_message_time"));
+                    contact.setUnreadCount(rs.getInt("unread_count"));
+                    contacts.add(contact);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        
+        return contacts;
     }
     
     /**

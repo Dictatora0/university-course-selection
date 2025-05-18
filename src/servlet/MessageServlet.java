@@ -7,6 +7,7 @@ import dao.MessageDAO;
 import dao.StudentDAO;
 import model.Message;
 import model.Student;
+import model.Contact;
 import util.ResponseUtil;
 
 import javax.servlet.ServletException;
@@ -241,6 +242,30 @@ public class MessageServlet extends BaseServlet {
     }
     
     /**
+     * 处理获取最近联系人请求
+     */
+    private void handleGetRecentContacts(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        // 验证用户是否已登录
+        HttpSession session = req.getSession(false);
+        if (session == null || session.getAttribute("student") == null) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
+            return;
+        }
+        
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
+        
+        try {
+            // 调用DAO获取最近联系人列表
+            List<Contact> contacts = messageDao.getRecentContacts(studentId);
+            ResponseUtil.sendSuccessResponse(resp, "获取最近联系人成功", contacts);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "获取最近联系人失败: " + e.getMessage(), e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取最近联系人失败: " + e.getMessage());
+        }
+    }
+    
+    /**
      * 处理标记消息为已读请求
      */
     private void handleMarkMessageAsRead(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -352,6 +377,8 @@ public class MessageServlet extends BaseServlet {
             handleGetUnreadMessages(req, resp);
         } else if (pathInfo.equals("/unread_count")) {
             handleGetUnreadMessageCount(req, resp);
+        } else if (pathInfo.equals("/recent_contacts")) {
+            handleGetRecentContacts(req, resp);
         } else {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "未找到请求的资源: GET " + pathInfo);
         }
