@@ -22,7 +22,20 @@ function checkLoginStatus() {
         method: 'GET',
         credentials: 'same-origin'
     })
-    .then(response => response.json())
+    .then(response => {
+        // 检查响应状态
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // 检查内容类型是否为JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error(`非预期的响应格式：${contentType}，请检查API实现`);
+        }
+        
+        return response.json();
+    })
     .then(data => {
         if (!data.success) {
             // 未登录，跳转到登录页面
@@ -35,6 +48,11 @@ function checkLoginStatus() {
         document.getElementById('adminName').textContent = admin.name;
         document.getElementById('adminRole').textContent = getRoleName(admin.role);
         
+        // 给管理员对象添加辅助属性
+        admin.isSuperAdmin = admin.role === 'SUPER_ADMIN';
+        admin.isCourseAdmin = admin.role === 'COURSE_ADMIN' || admin.role === 'SUPER_ADMIN';
+        admin.isStudentAdmin = admin.role === 'STUDENT_ADMIN' || admin.role === 'SUPER_ADMIN';
+        
         // 保存管理员信息到全局变量，以便其他函数使用
         window.currentAdmin = admin;
         
@@ -43,7 +61,7 @@ function checkLoginStatus() {
     })
     .catch(error => {
         console.error('检查登录状态失败:', error);
-        alert('网络错误，请刷新页面重试');
+        alert('网络错误，请刷新页面重试: ' + error.message);
     });
 }
 
@@ -225,7 +243,7 @@ function loadDashboardData() {
     });
     
     // 加载今日活跃用户数
-    fetch('/course-selection/api/admin/stats/active-users', {
+    fetch('/course-selection/api/admin/stats/activeUsers', {
         method: 'GET',
         credentials: 'same-origin'
     })
@@ -243,11 +261,33 @@ function loadDashboardData() {
     });
     
     // 加载最近交易记录
-    fetch('/course-selection/api/admin/transactions/recent', {
+    loadRecentTransactions();
+}
+
+/**
+ * 加载最近交易记录
+ */
+function loadRecentTransactions() {
+    document.getElementById('recentTransactions').innerHTML = '<tr><td colspan="6" class="loading">加载中...</td></tr>';
+    
+    fetch('/course-selection/api/admin/stats/recentTransactions', {
         method: 'GET',
         credentials: 'same-origin'
     })
-    .then(response => response.json())
+    .then(response => {
+        // 检查响应状态
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // 检查内容类型是否为JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error(`非预期的响应格式：${contentType}，请检查API实现`);
+        }
+        
+        return response.json();
+    })
     .then(data => {
         if (data.success && data.data) {
             renderRecentTransactions(data.data);
@@ -257,7 +297,8 @@ function loadDashboardData() {
     })
     .catch(error => {
         console.error('加载最近交易记录失败:', error);
-        document.getElementById('recentTransactions').innerHTML = '<tr><td colspan="6">加载失败，网络错误</td></tr>';
+        document.getElementById('recentTransactions').innerHTML = 
+            `<tr><td colspan="6">加载失败: ${error.message || '网络错误'}</td></tr>`;
     });
 }
 
@@ -619,6 +660,642 @@ function loadSettingsModule() {
     
     // 绑定保存按钮事件
     document.getElementById('saveProfileBtn').addEventListener('click', saveProfile);
+}
+
+/**
+ * 显示添加课程模态框
+ */
+function showAddCourseModal() {
+    // 创建模态框
+    let modalHtml = `
+        <div class="modal" id="addCourseModal">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">添加课程</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close" id="closeAddCourseModalBtn">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="addCourseForm">
+                            <div class="form-group">
+                                <label for="courseId">课程编号</label>
+                                <input type="text" class="form-control" id="courseId" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="courseName">课程名称</label>
+                                <input type="text" class="form-control" id="courseName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="deptId">所属院系</label>
+                                <select class="form-control" id="deptId" required>
+                                    <!-- 院系列表将动态加载 -->
+                                    <option value="">-- 请选择院系 --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="credit">学分</label>
+                                <input type="number" class="form-control" id="credit" min="0" step="0.5" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="capacity">容量</label>
+                                <input type="number" class="form-control" id="capacity" min="1" required>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal" id="cancelAddCourseBtn">取消</button>
+                        <button type="button" class="btn btn-primary" id="saveAddCourseBtn">保存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // 添加到页面
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // 加载院系列表
+    loadDepartments();
+
+    // 显示模态框
+    const modal = document.getElementById('addCourseModal');
+    modal.style.display = 'block';
+    modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+    modal.style.position = 'fixed';
+    modal.style.zIndex = '1000';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.overflow = 'auto';
+    modal.style.paddingTop = '50px';
+
+    // 设置模态框内容样式
+    const modalDialog = modal.querySelector('.modal-dialog');
+    modalDialog.style.margin = '10px auto';
+    modalDialog.style.maxWidth = '500px';
+    modalDialog.style.backgroundColor = '#fff';
+    modalDialog.style.borderRadius = '5px';
+    modalDialog.style.overflow = 'hidden';
+
+    // 事件监听
+    document.getElementById('closeAddCourseModalBtn').addEventListener('click', closeAddCourseModal);
+    document.getElementById('cancelAddCourseBtn').addEventListener('click', closeAddCourseModal);
+    document.getElementById('saveAddCourseBtn').addEventListener('click', saveAddCourse);
+}
+
+/**
+ * 关闭添加课程模态框
+ */
+function closeAddCourseModal() {
+    const modal = document.getElementById('addCourseModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+/**
+ * 保存添加的课程
+ */
+function saveAddCourse() {
+    const courseId = document.getElementById('courseId').value.trim();
+    const courseName = document.getElementById('courseName').value.trim();
+    const deptId = document.getElementById('deptId').value.trim();
+    const credit = document.getElementById('credit').value;
+    const capacity = document.getElementById('capacity').value;
+
+    if (!courseId || !courseName || !deptId || !credit || !capacity) {
+        alert('请填写所有必填字段');
+        return;
+    }
+
+    const newCourse = {
+        courseId: courseId,
+        courseName: courseName,
+        deptId: deptId,
+        credit: parseFloat(credit),
+        capacity: parseInt(capacity, 10)
+    };
+
+    fetch('/course-selection/api/course/add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newCourse),
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('课程添加成功');
+            closeAddCourseModal();
+            loadCoursesList(); // 重新加载课程列表
+        } else {
+            alert('课程添加失败: ' + (data.message || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('添加课程失败:', error);
+        alert('添加课程失败，请检查网络连接');
+    });
+}
+
+/**
+ * 加载院系列表
+ */
+function loadDepartments() {
+    fetch('/course-selection/api/department/list', {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.data) {
+            const deptSelect = document.getElementById('deptId');
+            if (deptSelect) {
+                // 保留第一个选项
+                const firstOption = deptSelect.options[0];
+                deptSelect.innerHTML = '';
+                deptSelect.appendChild(firstOption);
+                
+                // 添加院系选项
+                data.data.forEach(dept => {
+                    const option = document.createElement('option');
+                    option.value = dept.deptId;
+                    option.textContent = dept.deptName;
+                    deptSelect.appendChild(option);
+                });
+            }
+        }
+    })
+    .catch(error => {
+        console.error('加载院系列表失败:', error);
+    });
+}
+
+/**
+ * 加载课程列表
+ */
+function loadCoursesList() {
+    document.getElementById('coursesList').innerHTML = '<tr><td colspan="6" class="loading">加载中...</td></tr>';
+    
+    fetch('/course-selection/api/course/list', {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        // 检查响应状态
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // 检查内容类型是否为JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error(`非预期的响应格式：${contentType}，请检查API实现`);
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        if (data.success && data.data && data.data.length > 0) {
+            let html = '';
+            
+            data.data.forEach(course => {
+                html += `
+                    <tr>
+                        <td>${course.courseId}</td>
+                        <td>${course.courseName}</td>
+                        <td>${course.deptName || '未知'}</td>
+                        <td>${course.credit}</td>
+                        <td>${course.enrollmentCount || 0}/${course.capacity}</td>
+                        <td>
+                            <button class="btn btn-secondary btn-sm edit-course-btn" data-id="${course.courseId}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-danger btn-sm delete-course-btn" data-id="${course.courseId}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            document.getElementById('coursesList').innerHTML = html;
+            
+            // 添加事件监听
+            document.querySelectorAll('.edit-course-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const courseId = this.getAttribute('data-id');
+                    editCourse(courseId);
+                });
+            });
+            
+            document.querySelectorAll('.delete-course-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const courseId = this.getAttribute('data-id');
+                    deleteCourse(courseId);
+                });
+            });
+        } else {
+            document.getElementById('coursesList').innerHTML = '<tr><td colspan="6">暂无课程数据</td></tr>';
+        }
+    })
+    .catch(error => {
+        console.error('加载课程列表失败:', error);
+        document.getElementById('coursesList').innerHTML = `<tr><td colspan="6">加载失败: ${error.message}</td></tr>`;
+    });
+}
+
+/**
+ * 编辑课程
+ */
+function editCourse(courseId) {
+    alert(`编辑课程: ${courseId} 功能尚未实现`);
+}
+
+/**
+ * 删除课程
+ */
+function deleteCourse(courseId) {
+    if (confirm(`确定要删除课程 ${courseId} 吗？此操作不可恢复！`)) {
+        alert(`删除课程: ${courseId} 功能尚未实现`);
+    }
+}
+
+/**
+ * 搜索课程
+ */
+function searchCourses() {
+    const searchText = document.getElementById('courseSearch').value.trim();
+    console.log('搜索课程:', searchText);
+    // 这里应该实现搜索课程的功能
+}
+
+/**
+ * 加载学生列表
+ */
+function loadStudentsList() {
+    document.getElementById('studentsList').innerHTML = '<tr><td colspan="6" class="loading">加载中...</td></tr>';
+    
+    fetch('/course-selection/api/admin/students', {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        // 检查响应状态
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // 检查内容类型是否为JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error(`非预期的响应格式：${contentType}，请检查API实现`);
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        if (data.success && data.data && data.data.length > 0) {
+            let html = '';
+            
+            data.data.forEach(student => {
+                html += `
+                    <tr>
+                        <td>${student.studentId}</td>
+                        <td>${student.name}</td>
+                        <td>${new Date(student.createdAt).toLocaleString()}</td>
+                        <td>${student.balance ? student.balance.toFixed(2) : '0.00'}</td>
+                        <td>${student.status ? '正常' : '禁用'}</td>
+                        <td>
+                            <button class="btn btn-secondary btn-sm view-student-btn" data-id="${student.studentId}">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-warning btn-sm toggle-status-btn" data-id="${student.studentId}" data-status="${student.status}">
+                                ${student.status ? '<i class="bi bi-lock"></i>' : '<i class="bi bi-unlock"></i>'}
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            document.getElementById('studentsList').innerHTML = html;
+            
+            // 添加事件监听
+            document.querySelectorAll('.view-student-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const studentId = this.getAttribute('data-id');
+                    viewStudentDetail(studentId);
+                });
+            });
+            
+            document.querySelectorAll('.toggle-status-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const studentId = this.getAttribute('data-id');
+                    const currentStatus = this.getAttribute('data-status') === 'true';
+                    toggleStudentStatus(studentId, currentStatus);
+                });
+            });
+        } else {
+            document.getElementById('studentsList').innerHTML = '<tr><td colspan="6">暂无学生数据</td></tr>';
+        }
+    })
+    .catch(error => {
+        console.error('加载学生列表失败:', error);
+        document.getElementById('studentsList').innerHTML = `<tr><td colspan="6">加载失败: ${error.message}</td></tr>`;
+    });
+}
+
+/**
+ * 查看学生详情
+ */
+function viewStudentDetail(studentId) {
+    alert(`查看学生详情: ${studentId} 功能尚未实现`);
+}
+
+/**
+ * 切换学生状态（启用/禁用）
+ */
+function toggleStudentStatus(studentId, currentStatus) {
+    const newStatus = !currentStatus;
+    const action = newStatus ? '启用' : '禁用';
+    
+    if (confirm(`确定要${action}学生 ${studentId} 吗？`)) {
+        fetch(`/course-selection/api/admin/students/${studentId}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ status: newStatus }),
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`学生${action}成功`);
+                loadStudentsList(); // 重新加载学生列表
+            } else {
+                alert(`学生${action}失败: ` + (data.message || '未知错误'));
+            }
+        })
+        .catch(error => {
+            console.error(`${action}学生失败:`, error);
+            alert(`${action}学生失败，请检查网络连接`);
+        });
+    }
+}
+
+/**
+ * 搜索学生
+ */
+function searchStudents() {
+    const searchText = document.getElementById('studentSearch').value.trim();
+    console.log('搜索学生:', searchText);
+    // 这里应该实现搜索学生的功能
+}
+
+/**
+ * 筛选交易记录
+ */
+function filterTransactions() {
+    const typeFilter = document.getElementById('transactionTypeFilter').value;
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    
+    // 构建查询参数
+    let queryParams = [];
+    if (typeFilter) {
+        queryParams.push(`type=${encodeURIComponent(typeFilter)}`);
+    }
+    if (startDate) {
+        queryParams.push(`startDate=${encodeURIComponent(startDate)}`);
+    }
+    if (endDate) {
+        queryParams.push(`endDate=${encodeURIComponent(endDate)}`);
+    }
+    
+    const queryString = queryParams.length ? `?${queryParams.join('&')}` : '';
+    
+    // 显示加载中状态
+    document.getElementById('transactionsList').innerHTML = '<tr><td colspan="8" class="loading">加载中...</td></tr>';
+    
+    // 调用API获取筛选后的交易记录
+    fetch(`/course-selection/api/admin/transactions${queryString}`, {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error(`非预期的响应格式：${contentType}`);
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        if (data.success && data.data && data.data.length > 0) {
+            renderTransactionsList(data.data);
+        } else {
+            document.getElementById('transactionsList').innerHTML = '<tr><td colspan="8">没有符合条件的交易记录</td></tr>';
+        }
+    })
+    .catch(error => {
+        console.error('筛选交易记录失败:', error);
+        document.getElementById('transactionsList').innerHTML = 
+            `<tr><td colspan="8">加载失败: ${error.message || '网络错误'}</td></tr>`;
+    });
+}
+
+/**
+ * 搜索交易记录
+ */
+function searchTransactions() {
+    const searchText = document.getElementById('transactionSearch').value.trim();
+    if (!searchText) {
+        alert('请输入学生ID');
+        return;
+    }
+    
+    // 显示加载中状态
+    document.getElementById('transactionsList').innerHTML = '<tr><td colspan="8" class="loading">加载中...</td></tr>';
+    
+    // 调用API搜索交易记录
+    fetch(`/course-selection/api/admin/transactions?studentId=${encodeURIComponent(searchText)}`, {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error(`非预期的响应格式：${contentType}`);
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        if (data.success && data.data && data.data.length > 0) {
+            renderTransactionsList(data.data);
+        } else {
+            document.getElementById('transactionsList').innerHTML = '<tr><td colspan="8">没有找到该学生的交易记录</td></tr>';
+        }
+    })
+    .catch(error => {
+        console.error('搜索交易记录失败:', error);
+        document.getElementById('transactionsList').innerHTML = 
+            `<tr><td colspan="8">加载失败: ${error.message || '网络错误'}</td></tr>`;
+    });
+}
+
+/**
+ * 加载交易记录列表
+ */
+function loadTransactionsList() {
+    document.getElementById('transactionsList').innerHTML = '<tr><td colspan="8" class="loading">加载中...</td></tr>';
+    
+    // 获取当前筛选条件
+    const typeFilter = document.getElementById('transactionTypeFilter').value;
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    
+    // 构建查询参数
+    let queryParams = [];
+    if (typeFilter) {
+        queryParams.push(`type=${encodeURIComponent(typeFilter)}`);
+    }
+    if (startDate) {
+        queryParams.push(`startDate=${encodeURIComponent(startDate)}`);
+    }
+    if (endDate) {
+        queryParams.push(`endDate=${encodeURIComponent(endDate)}`);
+    }
+    
+    const queryString = queryParams.length ? `?${queryParams.join('&')}` : '';
+    
+    // 调用API获取交易记录列表
+    fetch(`/course-selection/api/admin/transactions${queryString}`, {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error(`非预期的响应格式：${contentType}`);
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        if (data.success && data.data && data.data.length > 0) {
+            renderTransactionsList(data.data);
+        } else {
+            document.getElementById('transactionsList').innerHTML = '<tr><td colspan="8">暂无交易记录</td></tr>';
+        }
+    })
+    .catch(error => {
+        console.error('加载交易记录列表失败:', error);
+        document.getElementById('transactionsList').innerHTML = 
+            `<tr><td colspan="8">加载失败: ${error.message || '网络错误'}</td></tr>`;
+    });
+}
+
+/**
+ * 渲染交易记录列表
+ */
+function renderTransactionsList(transactions) {
+    let html = '';
+    
+    transactions.forEach(transaction => {
+        html += `
+            <tr>
+                <td>${transaction.transactionId}</td>
+                <td>${transaction.studentId}</td>
+                <td>${getTransactionTypeName(transaction.type)}</td>
+                <td>${transaction.amount.toFixed(2)}</td>
+                <td>${new Date(transaction.transactionDate).toLocaleString()}</td>
+                <td>${transaction.status ? '成功' : '失败'}</td>
+                <td>${transaction.relatedStudentId || '-'}</td>
+                <td>${transaction.description || '-'}</td>
+            </tr>
+        `;
+    });
+    
+    document.getElementById('transactionsList').innerHTML = html;
+}
+
+/**
+ * 保存管理员个人信息
+ */
+function saveProfile() {
+    const adminName = document.getElementById('currentAdminName').value.trim();
+    const password = document.getElementById('currentAdminPassword').value.trim();
+    const confirmPassword = document.getElementById('confirmPassword').value.trim();
+    
+    if (!adminName) {
+        alert('姓名不能为空');
+        return;
+    }
+    
+    // 如果输入了密码，需要检查确认密码是否匹配
+    if (password && password !== confirmPassword) {
+        alert('两次输入的密码不一致');
+        return;
+    }
+    
+    // 构建更新数据
+    const updateData = {
+        name: adminName
+    };
+    
+    // 如果有设置密码，则添加到更新数据中
+    if (password) {
+        updateData.password = password;
+    }
+    
+    // 发送更新请求
+    fetch(`/course-selection/api/admin/${window.currentAdmin.adminId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData),
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('个人信息更新成功');
+            // 更新全局管理员对象
+            if (window.currentAdmin) {
+                window.currentAdmin.name = adminName;
+                document.getElementById('adminName').textContent = adminName;
+            }
+            // 清空密码字段
+            document.getElementById('currentAdminPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+        } else {
+            alert('个人信息更新失败: ' + (data.message || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('更新个人信息失败:', error);
+        alert('更新个人信息失败，请检查网络连接');
+    });
 }
 
 // 其他函数将根据需要实现

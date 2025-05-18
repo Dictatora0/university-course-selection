@@ -24,7 +24,9 @@ public class CourseDAO {
         
         try {
             conn = DBConnection.getConnection();
-            String sql = "SELECT c.*, d.dept_name FROM Course c " +
+            String sql = "SELECT c.*, d.dept_name, " +
+                    "(SELECT COUNT(*) FROM Enrollment e WHERE e.course_id = c.course_id) AS enrollment_count " +
+                    "FROM Course c " +
                     "JOIN Department d ON c.dept_id = d.dept_id";
             pstmt = conn.prepareStatement(sql);
             rs = pstmt.executeQuery();
@@ -35,6 +37,9 @@ public class CourseDAO {
                 course.setCourseName(rs.getString("course_name"));
                 course.setDeptId(rs.getString("dept_id"));
                 course.setCredit(rs.getBigDecimal("credit"));
+                course.setDeptName(rs.getString("dept_name"));
+                course.setCapacity(rs.getInt("capacity"));
+                course.setEnrollmentCount(rs.getInt("enrollment_count"));
                 courses.add(course);
             }
         } catch (SQLException e) {

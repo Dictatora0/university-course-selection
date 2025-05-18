@@ -28,6 +28,8 @@ public class Transaction {
     // 状态字段，例如 PENDING, COMPLETED, FAILED, CANCELLED
     // public enum TransactionStatus { PENDING, COMPLETED, FAILED, CANCELLED }
     // private TransactionStatus status;
+    
+    private boolean status; // 交易状态：true成功，false失败
 
     // 扩展属性 (用于显示，由DAO填充)
     private String studentName;        // studentId 对应的姓名
@@ -117,6 +119,14 @@ public class Transaction {
 
     public void setRelatedStudentName(String relatedStudentName) {
         this.relatedStudentName = relatedStudentName;
+    }
+
+    public boolean isStatus() {
+        return status;
+    }
+    
+    public void setStatus(boolean status) {
+        this.status = status;
     }
 
     @Override

@@ -19,6 +19,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +62,8 @@ public class AdminServlet extends HttpServlet {
             handleGetAllAdmins(req, resp);
         } else if (pathInfo.startsWith("/stats")) {
             handleStatsRequests(req, resp, pathInfo, currentAdmin);
+        } else if (pathInfo.startsWith("/transactions")) {
+            handleTransactionRequests(req, resp, pathInfo, currentAdmin);
         } else {
             resp.sendError(HttpServletResponse.SC_NOT_FOUND);
         }
@@ -80,13 +83,11 @@ public class AdminServlet extends HttpServlet {
 
     private void handleStatsRequests(HttpServletRequest req, HttpServletResponse resp, String pathInfo, Administrator admin) throws IOException {
         if (admin == null) {
-             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "统计功能需要管理员登录");
-             return;
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "统计功能需要管理员登录");
+            return;
         }
-
-        if (pathInfo.equals("/stats/overview")) {
-            handleGetSystemOverview(req, resp);
-        } else if (pathInfo.equals("/stats") || pathInfo.equals("/stats/")) {
+        
+        if (pathInfo.equals("/stats/all")) {
             handleGetAllStatsCombined(req, resp, admin);
         } else if (pathInfo.equals("/stats/students")) {
             handleGetStudentStats(req, resp);
@@ -94,12 +95,61 @@ public class AdminServlet extends HttpServlet {
             handleGetCourseStats(req, resp);
         } else if (pathInfo.equals("/stats/enrollments")) {
             handleGetEnrollmentStats(req, resp);
-        } else if (pathInfo.equals("/stats/active-users")) {
+        } else if (pathInfo.equals("/stats/activeUsers")) {
             handleGetActiveUsersCombined(req, resp, admin);
-        } else if (pathInfo.equals("/stats/transactions/recent")) {
+        } else if (pathInfo.equals("/stats/recentTransactions")) {
             handleGetRecentTransactionsCombined(req, resp, admin);
+        } else if (pathInfo.equals("/transactions/recent")) {
+            handleGetRecentTransactionsForAdmin(req, resp);
         } else {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND, "未找到指定的统计路径: " + pathInfo);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "未知的统计路径");
+        }
+    }
+
+    /**
+     * 处理交易记录相关请求
+     */
+    private void handleTransactionRequests(HttpServletRequest req, HttpServletResponse resp, String pathInfo, Administrator admin) throws IOException {
+        if (admin == null) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "交易记录功能需要管理员登录");
+            return;
+        }
+        
+        // 只有超级管理员和学生管理员可以访问交易记录
+        if (!admin.getRole().equals("SUPER_ADMIN") && !admin.getRole().equals("STUDENT_ADMIN")) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "您没有权限访问交易记录");
+            return;
+        }
+        
+        if (pathInfo.equals("/transactions")) {
+            // 获取交易记录列表，支持筛选
+            String typeFilter = req.getParameter("type");
+            String startDate = req.getParameter("startDate");
+            String endDate = req.getParameter("endDate");
+            String studentId = req.getParameter("studentId");
+            
+            try {
+                List<Transaction> transactions = new ArrayList<>();
+                
+                // 根据筛选条件获取交易记录
+                if (studentId != null && !studentId.isEmpty()) {
+                    // 按学生ID搜索
+                    transactions = transactionDAO.findByStudentId(studentId);
+                } else {
+                    // 按其他条件筛选
+                    // 这里需要在TransactionDAO中添加相应的方法
+                    transactions = transactionDAO.getRecentTransactions(100); // 临时方案，返回最近100条
+                }
+                
+                ResponseUtil.sendSuccessResponse(resp, "成功获取交易记录", transactions);
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "获取交易记录失败", e);
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取交易记录失败: " + e.getMessage());
+            }
+        } else if (pathInfo.equals("/transactions/recent")) {
+            handleGetRecentTransactionsForAdmin(req, resp);
+        } else {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "未知的交易记录路径");
         }
     }
 
@@ -133,15 +183,7 @@ public class AdminServlet extends HttpServlet {
     private void handleGetStudentStats(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         try {
             int totalStudents = studentDAO.getTotalStudentCount();
-            int recentStudents = studentDAO.getRecentRegisteredStudentCount(30);
-            List<Object[]> genderDistribution = studentDAO.getGenderDistribution();
-            
-            Map<String, Object> studentStats = new HashMap<>();
-            studentStats.put("totalStudents", totalStudents);
-            studentStats.put("recentStudents", recentStudents);
-            studentStats.put("genderDistribution", genderDistribution);
-            
-            ResponseUtil.sendSuccessResponse(resp, "获取学生统计数据成功", studentStats);
+            ResponseUtil.sendSuccessResponse(resp, "获取学生统计数据成功", totalStudents);
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "获取学生统计数据失败", e);
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
@@ -155,17 +197,7 @@ public class AdminServlet extends HttpServlet {
     private void handleGetCourseStats(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         try {
             int totalCourses = courseDAO.getTotalCourseCount();
-            List<Object[]> coursesByDepartment = courseDAO.getCoursesCountByDepartment();
-            java.math.BigDecimal avgCredit = courseDAO.getAverageCourseCredit();
-            List<Object[]> popularCourses = courseDAO.getMostPopularCourses(10);
-            
-            Map<String, Object> courseStats = new HashMap<>();
-            courseStats.put("totalCourses", totalCourses);
-            courseStats.put("coursesByDepartment", coursesByDepartment);
-            courseStats.put("averageCourseCredit", avgCredit);
-            courseStats.put("popularCourses", popularCourses);
-            
-            ResponseUtil.sendSuccessResponse(resp, "获取课程统计数据成功", courseStats);
+            ResponseUtil.sendSuccessResponse(resp, "获取课程统计数据成功", totalCourses);
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "获取课程统计数据失败", e);
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
@@ -229,7 +261,20 @@ public class AdminServlet extends HttpServlet {
     }
 
     /**
-     * 获取最近交易记录
+     * 获取最近交易记录（管理员专用API）
+     */
+    private void handleGetRecentTransactionsForAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        try {
+            List<Transaction> transactions = transactionDAO.getRecentTransactions(20);
+            ResponseUtil.sendSuccessResponse(resp, "成功获取最近交易记录", transactions);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "获取最近交易记录失败", e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取最近交易记录失败");
+        }
+    }
+
+    /**
+     * 获取最近交易记录（合并数据）
      */
     private void handleGetRecentTransactionsCombined(HttpServletRequest req, HttpServletResponse resp, Administrator admin) throws IOException {
         try {

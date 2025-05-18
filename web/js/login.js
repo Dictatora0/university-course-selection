@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    admin_id: adminId,
+                    adminId: adminId,
                     password: password
                 }),
                 credentials: 'include'

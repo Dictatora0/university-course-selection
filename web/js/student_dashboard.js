@@ -1817,152 +1817,143 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 初始化个人信息编辑表单
         function initProfileEditForm(studentData) {
-            // 编辑按钮事件
-            const editBtn = document.getElementById('editProfileBtn');
-            const cancelBtn = document.getElementById('cancelEditBtn');
-            const editForm = document.getElementById('editProfileForm');
+            console.log("初始化个人信息编辑表单 - 重写版");
             
-            // 显示/隐藏编辑表单
-            if (editBtn) {
-                editBtn.addEventListener('click', function() {
-                    document.getElementById('profileInfoView').style.display = 'none';
-                    document.getElementById('profileInfoEdit').style.display = 'block';
-                    
-                    // 初始化表单数据
-                    document.getElementById('editName').value = studentData.name || '';
-                    
-                    // 出生日期需要格式化为YYYY-MM-DD格式
-                    const birthDate = studentData.birthDate ? new Date(studentData.birthDate) : null;
-                    if (birthDate) {
-                        const year = birthDate.getFullYear();
-                        const month = String(birthDate.getMonth() + 1).padStart(2, '0');
-                        const day = String(birthDate.getDate()).padStart(2, '0');
-                        document.getElementById('editBirthDate').value = `${year}-${month}-${day}`;
-                    } else {
-                        document.getElementById('editBirthDate').value = '';
-                    }
-                    
-                    document.getElementById('editIdCard').value = studentData.idCard || '';
-                    document.getElementById('editAddress').value = studentData.address || '';
-                    document.getElementById('editEmail').value = studentData.email || '';
-                    document.getElementById('editPhone').value = studentData.phone || '';
-                    
-                    // 院系选择会在loadDepartments中处理
-                });
-            }
+            // 直接重新添加事件监听器，不使用克隆方法
+            // 编辑按钮
+            document.getElementById('editProfileBtn')?.addEventListener('click', function() {
+                console.log("编辑按钮被点击");
+                document.getElementById('profileInfoView').style.display = 'none';
+                document.getElementById('profileInfoEdit').style.display = 'block';
+                
+                // 初始化表单数据
+                document.getElementById('editName').value = studentData.name || '';
+                
+                // 出生日期需要格式化为YYYY-MM-DD格式
+                const birthDate = studentData.birthDate ? new Date(studentData.birthDate) : null;
+                if (birthDate) {
+                    const year = birthDate.getFullYear();
+                    const month = String(birthDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(birthDate.getDate()).padStart(2, '0');
+                    document.getElementById('editBirthDate').value = `${year}-${month}-${day}`;
+                } else {
+                    document.getElementById('editBirthDate').value = '';
+                }
+                
+                document.getElementById('editIdCard').value = studentData.idCard || '';
+                document.getElementById('editAddress').value = studentData.address || '';
+                document.getElementById('editEmail').value = studentData.email || '';
+                document.getElementById('editPhone').value = studentData.phone || '';
+            });
             
-            // 取消编辑
-            if (cancelBtn) {
-                cancelBtn.addEventListener('click', function() {
-                    document.getElementById('profileInfoEdit').style.display = 'none';
-                    document.getElementById('profileInfoView').style.display = 'block';
-                });
-            }
+            // 取消编辑按钮
+            document.getElementById('cancelEditBtn')?.addEventListener('click', function() {
+                console.log("取消按钮被点击");
+                document.getElementById('profileInfoEdit').style.display = 'none';
+                document.getElementById('profileInfoView').style.display = 'block';
+            });
             
             // 表单提交
-            if (editForm) {
-                editForm.addEventListener('submit', async function(e) {
-                    e.preventDefault();
+            document.getElementById('editProfileForm')?.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                console.log("表单提交");
+                
+                // 禁用提交按钮防止重复提交
+                const submitBtn = this.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 保存中...';
+                }
+                
+                try {
+                    // 准备更新数据
+                    const updatedData = {
+                        deptId: document.getElementById('editDeptId').value,
+                        birthDate: document.getElementById('editBirthDate').value,
+                        idCard: document.getElementById('editIdCard').value,
+                        address: document.getElementById('editAddress').value,
+                        email: document.getElementById('editEmail').value,
+                        phone: document.getElementById('editPhone').value
+                    };
                     
-                    // 禁用提交按钮防止重复提交
-                    const submitBtn = this.querySelector('button[type="submit"]');
+                    console.log('准备更新个人信息:', updatedData);
+                    
+                    // 调用API更新个人信息
+                    await API.student.updateInfo(updatedData);
+                    
+                    window.showToast('个人信息更新成功!', 'success');
+                    
+                    // 重新加载个人信息
+                    loadProfileInfo();
+                    
+                    // 切换回查看模式
+                    document.getElementById('profileInfoEdit').style.display = 'none';
+                    document.getElementById('profileInfoView').style.display = 'block';
+                    
+                } catch (error) {
+                    console.error('更新个人信息失败:', error);
+                    window.showToast('更新个人信息失败: ' + error.message, 'danger');
+                } finally {
+                    // 恢复提交按钮状态
                     if (submitBtn) {
-                        submitBtn.disabled = true;
-                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 保存中...';
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '保存修改';
                     }
-                    
-                    try {
-                        // 准备更新数据
-                        const updatedData = {
-                            deptId: document.getElementById('editDeptId').value,
-                            birthDate: document.getElementById('editBirthDate').value,
-                            idCard: document.getElementById('editIdCard').value,
-                            address: document.getElementById('editAddress').value,
-                            email: document.getElementById('editEmail').value,
-                            phone: document.getElementById('editPhone').value
-                        };
-                        
-                        console.log('准备更新个人信息:', updatedData);
-                        
-                        // 调用API更新个人信息
-                        await API.student.updateInfo(updatedData);
-                        
-                        window.showToast('个人信息更新成功!', 'success');
-                        
-                        // 重新加载个人信息
-                        loadProfileInfo();
-                        
-                        // 切换回查看模式
-                        document.getElementById('profileInfoEdit').style.display = 'none';
-                        document.getElementById('profileInfoView').style.display = 'block';
-                        
-                    } catch (error) {
-                        console.error('更新个人信息失败:', error);
-                        window.showToast('更新个人信息失败: ' + error.message, 'danger');
-                    } finally {
-                        // 恢复提交按钮状态
-                        if (submitBtn) {
-                            submitBtn.disabled = false;
-                            submitBtn.innerHTML = '保存修改';
-                        }
-                    }
-                });
-            }
+                }
+            });
             
             // 密码修改表单
-            const passwordForm = document.getElementById('changePasswordForm');
-            if (passwordForm) {
-                passwordForm.addEventListener('submit', async function(e) {
-                    e.preventDefault();
+            document.getElementById('changePasswordForm')?.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                console.log("密码修改表单提交");
+                
+                const currentPassword = document.getElementById('currentPassword').value;
+                const newPassword = document.getElementById('newPassword').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                
+                // 验证新密码
+                if (newPassword.length < 6) {
+                    window.showToast('新密码长度至少为6位', 'warning');
+                    return;
+                }
+                
+                if (!/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/.test(newPassword)) {
+                    window.showToast('新密码必须包含字母和数字', 'warning');
+                    return;
+                }
+                
+                if (newPassword !== confirmPassword) {
+                    window.showToast('两次输入的密码不一致', 'warning');
+                    return;
+                }
+                
+                // 禁用提交按钮防止重复提交
+                const submitBtn = this.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 处理中...';
+                }
+                
+                try {
+                    // 调用API更改密码
+                    await API.student.changePassword(currentPassword, newPassword);
                     
-                    const currentPassword = document.getElementById('currentPassword').value;
-                    const newPassword = document.getElementById('newPassword').value;
-                    const confirmPassword = document.getElementById('confirmPassword').value;
+                    window.showToast('密码修改成功!', 'success');
                     
-                    // 验证新密码
-                    if (newPassword.length < 6) {
-                        window.showToast('新密码长度至少为6位', 'warning');
-                        return;
-                    }
+                    // 清空表单
+                    this.reset();
                     
-                    if (!/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/.test(newPassword)) {
-                        window.showToast('新密码必须包含字母和数字', 'warning');
-                        return;
-                    }
-                    
-                    if (newPassword !== confirmPassword) {
-                        window.showToast('两次输入的密码不一致', 'warning');
-                        return;
-                    }
-                    
-                    // 禁用提交按钮防止重复提交
-                    const submitBtn = this.querySelector('button[type="submit"]');
+                } catch (error) {
+                    console.error('修改密码失败:', error);
+                    window.showToast('修改密码失败: ' + error.message, 'danger');
+                } finally {
+                    // 恢复提交按钮状态
                     if (submitBtn) {
-                        submitBtn.disabled = true;
-                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 处理中...';
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '更改密码';
                     }
-                    
-                    try {
-                        // 调用API更改密码
-                        await API.student.changePassword(currentPassword, newPassword);
-                        
-                        window.showToast('密码修改成功!', 'success');
-                        
-                        // 清空表单
-                        this.reset();
-                        
-                    } catch (error) {
-                        console.error('修改密码失败:', error);
-                        window.showToast('修改密码失败: ' + error.message, 'danger');
-                    } finally {
-                        // 恢复提交按钮状态
-                        if (submitBtn) {
-                            submitBtn.disabled = false;
-                            submitBtn.innerHTML = '更改密码';
-                        }
-                    }
-                });
-            }
+                }
+            });
         }
         
         // 加载院系数据

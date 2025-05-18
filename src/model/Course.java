@@ -10,6 +10,9 @@ public class Course {
     private String courseName;
     private String deptId;
     private BigDecimal credit;
+    private String deptName;   // 院系名称
+    private int capacity;      // 课程容量
+    private int enrollmentCount; // 已选人数
     
     public Course() {
     }
@@ -54,6 +57,30 @@ public class Course {
         this.credit = credit;
     }
     
+    public String getDeptName() {
+        return deptName;
+    }
+    
+    public void setDeptName(String deptName) {
+        this.deptName = deptName;
+    }
+    
+    public int getCapacity() {
+        return capacity;
+    }
+    
+    public void setCapacity(int capacity) {
+        this.capacity = capacity;
+    }
+    
+    public int getEnrollmentCount() {
+        return enrollmentCount;
+    }
+    
+    public void setEnrollmentCount(int enrollmentCount) {
+        this.enrollmentCount = enrollmentCount;
+    }
+    
     @Override
     public String toString() {
         return "Course{" +
@@ -61,6 +88,9 @@ public class Course {
                 ", courseName='" + courseName + '\'' +
                 ", deptId='" + deptId + '\'' +
                 ", credit=" + credit +
+                ", deptName='" + deptName + '\'' +
+                ", capacity=" + capacity +
+                ", enrollmentCount=" + enrollmentCount +
                 '}';
     }
 } 

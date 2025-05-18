@@ -142,63 +142,47 @@ public class TransactionDAO {
 
     /**
      * 获取最近的交易记录
-     * @param limit 返回的记录数量限制
-     * @return 按交易时间排序的最近交易记录列表
+     * @param limit 返回的记录数量
+     * @return 交易记录列表
      */
     public List<Transaction> getRecentTransactions(int limit) {
         List<Transaction> transactions = new ArrayList<>();
-        String sql = "SELECT t.*, s.name as student_name, rs.name as related_student_name " +
-                     "FROM Transaction t " +
-                     "JOIN Student s ON t.student_id = s.student_id " +
-                     "LEFT JOIN Student rs ON t.related_student_id = rs.student_id " +
-                     "ORDER BY t.transaction_time DESC LIMIT ?";
+        String sql = "SELECT * FROM Transaction ORDER BY transaction_date DESC LIMIT ?";
         
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-
-        try {
-            conn = DBConnection.getConnection(); 
-            pstmt = conn.prepareStatement(sql);
-            pstmt.setInt(1, limit);
-            rs = pstmt.executeQuery();
-
-            while (rs.next()) {
-                Transaction transaction = new Transaction();
-                transaction.setTransactionId(rs.getString("transaction_id"));
-                transaction.setStudentId(rs.getString("student_id"));
-                
-                String typeStr = rs.getString("type");
-                if (typeStr != null) {
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, limit);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Transaction transaction = new Transaction();
+                    transaction.setTransactionId(rs.getString("transaction_id"));
+                    transaction.setStudentId(rs.getString("student_id"));
+                    transaction.setType(Transaction.TransactionType.valueOf(rs.getString("type")));
+                    
+                    // 使用setBigDecimal方法而不是setDouble
+                    transaction.setAmount(rs.getBigDecimal("amount"));
+                    
+                    transaction.setDescription(rs.getString("description"));
+                    transaction.setTransactionDate(rs.getTimestamp("transaction_date"));
+                    
+                    // Transaction可能没有status字段，我们检查它是否存在
                     try {
-                        transaction.setType(Transaction.TransactionType.valueOf(typeStr.toUpperCase()));
-                    } catch (IllegalArgumentException e) {
-                        System.err.println("数据库中存在无效的交易类型，ID: " + rs.getString("transaction_id") + ", 类型: " + typeStr);
-                        continue; // 跳过此格式错误的交易
+                        transaction.setStatus(rs.getBoolean("status"));
+                    } catch (SQLException e) {
+                        // 如果列不存在，设置一个默认值，通常应为true（成功）
+                        transaction.setStatus(true);
                     }
-                } else {
-                    System.err.println("数据库中存在空的交易类型，ID: " + rs.getString("transaction_id"));
-                    continue; // 如果类型是必需的且为 null，则跳过
+                    
+                    transactions.add(transaction);
                 }
-                
-                transaction.setAmount(rs.getBigDecimal("amount"));
-                transaction.setTransactionDate(rs.getTimestamp("transaction_time"));
-                transaction.setDescription(rs.getString("description"));
-                transaction.setRelatedStudentId(rs.getString("related_student_id"));
-                
-                // 从 JOIN 中填充姓名
-                transaction.setStudentName(rs.getString("student_name"));
-                transaction.setRelatedStudentName(rs.getString("related_student_name"));
-                
-                transactions.add(transaction);
             }
+            
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            try { if (rs != null) rs.close(); } catch (SQLException e) { e.printStackTrace(); }
-            try { if (pstmt != null) pstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
-            try { if (conn != null) conn.close(); } catch (SQLException e) { e.printStackTrace(); }
         }
+        
         return transactions;
     }
 

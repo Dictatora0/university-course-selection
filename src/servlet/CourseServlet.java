@@ -19,7 +19,7 @@ public class CourseServlet extends BaseServlet {
     
     public void list(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
-        if (session != null && session.getAttribute("student") != null) {
+        if (session != null && (session.getAttribute("student") != null || session.getAttribute("admin") != null)) {
             List<Course> courses = courseDAO.findAllWithDeptName();
             ResponseUtil.sendSuccess(resp, courses);
         } else {

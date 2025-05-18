@@ -83,6 +83,9 @@ public class StudentServlet extends BaseServlet {
         String jsonData = builder.toString();
         System.out.println("[StudentServlet.register] 收到的原始JSON数据: " + jsonData);
         
+        // 添加调试输出
+        System.out.println("[StudentServlet.register] 尝试解析JSON数据，长度: " + jsonData.length());
+        
         Student registerInfo = gson.fromJson(jsonData, Student.class);
         System.out.println("[StudentServlet.register] GSON解析后的Student对象: " + registerInfo);
         if (registerInfo != null) {
@@ -93,6 +96,12 @@ public class StudentServlet extends BaseServlet {
             System.out.println("[StudentServlet.register] 解析后的身份证号: " + registerInfo.getIdCard());
             System.out.println("[StudentServlet.register] 解析后的地址: " + registerInfo.getAddress());
             System.out.println("[StudentServlet.register] 解析后的院系ID: " + registerInfo.getDeptId());
+            
+            // 检查各字段是否为null或空
+            System.out.println("[StudentServlet.register] 字段检查:");
+            System.out.println("  studentId 是否为空: " + (registerInfo.getStudentId() == null || registerInfo.getStudentId().trim().isEmpty()));
+            System.out.println("  name 是否为空: " + (registerInfo.getName() == null || registerInfo.getName().trim().isEmpty()));
+            System.out.println("  password 是否为空: " + (registerInfo.getPassword() == null || registerInfo.getPassword().trim().isEmpty()));
         } else {
             System.out.println("[StudentServlet.register] GSON解析JSON数据后得到null对象");
             ResponseUtil.sendError(resp, "无法解析注册信息");
