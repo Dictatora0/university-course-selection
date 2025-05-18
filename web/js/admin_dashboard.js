@@ -922,7 +922,29 @@ function editCourse(courseId) {
  */
 function deleteCourse(courseId) {
     if (confirm(`确定要删除课程 ${courseId} 吗？此操作不可恢复！`)) {
-        alert(`删除课程: ${courseId} 功能尚未实现`);
+        // 发送删除请求
+        fetch(`/course-selection/api/course/${courseId}`, {
+            method: 'DELETE',
+            credentials: 'same-origin'
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                alert('课程删除成功');
+                loadCoursesList(); // 重新加载课程列表
+            } else {
+                alert('课程删除失败: ' + (data.message || '未知错误'));
+            }
+        })
+        .catch(error => {
+            console.error('删除课程失败:', error);
+            alert('删除课程失败，请检查网络连接或服务器日志');
+        });
     }
 }
 
@@ -1039,7 +1061,170 @@ function loadStudentsList() {
  * 查看学生详情
  */
 function viewStudentDetail(studentId) {
-    alert(`查看学生详情: ${studentId} 功能尚未实现`);
+    if (!studentId) {
+        alert('学生ID无效');
+        return;
+    }
+    
+    // 创建模态框
+    let modalHtml = `
+        <div class="modal" id="studentDetailModal">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">学生详情</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close" id="closeStudentDetailModalBtn">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body" id="studentDetailContent">
+                        <div class="loading-spinner">加载中...</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal" id="closeStudentDetailBtn">关闭</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // 添加到页面
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // 显示模态框
+    const modal = document.getElementById('studentDetailModal');
+    modal.style.display = 'block';
+    modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+    modal.style.position = 'fixed';
+    modal.style.zIndex = '1000';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.overflow = 'auto';
+    modal.style.paddingTop = '50px';
+
+    // 设置模态框内容样式
+    const modalDialog = modal.querySelector('.modal-dialog');
+    modalDialog.style.margin = '10px auto';
+    modalDialog.style.maxWidth = '600px';
+    modalDialog.style.backgroundColor = '#fff';
+    modalDialog.style.borderRadius = '5px';
+    modalDialog.style.overflow = 'hidden';
+
+    // 绑定关闭事件
+    document.getElementById('closeStudentDetailModalBtn').addEventListener('click', closeStudentDetailModal);
+    document.getElementById('closeStudentDetailBtn').addEventListener('click', closeStudentDetailModal);
+    
+    // 获取学生详情
+    fetch(`/course-selection/api/admin/students/${studentId}`, {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success && data.data) {
+            const student = data.data;
+            
+            // 格式化日期
+            let createdAtStr = '';
+            let birthDateStr = '';
+            try {
+                if (student.created_at || student.createdAt) {
+                    createdAtStr = new Date(student.created_at || student.createdAt).toLocaleString();
+                }
+                if (student.birth_date || student.birthDate) {
+                    birthDateStr = new Date(student.birth_date || student.birthDate).toLocaleDateString();
+                }
+            } catch (e) {
+                console.error('日期格式化失败:', e);
+            }
+            
+            let html = `
+                <div class="student-detail">
+                    <div class="detail-group">
+                        <label>学号：</label>
+                        <span>${student.student_id || student.studentId || ''}</span>
+                    </div>
+                    <div class="detail-group">
+                        <label>姓名：</label>
+                        <span>${student.name || ''}</span>
+                    </div>
+                    <div class="detail-group">
+                        <label>院系：</label>
+                        <span>${student.dept_name || student.deptName || '未设置'}</span>
+                    </div>
+                    <div class="detail-group">
+                        <label>出生日期：</label>
+                        <span>${birthDateStr || '未设置'}</span>
+                    </div>
+                    <div class="detail-group">
+                        <label>身份证号：</label>
+                        <span>${student.id_card || student.idCard || '未设置'}</span>
+                    </div>
+                    <div class="detail-group">
+                        <label>地址：</label>
+                        <span>${student.address || '未设置'}</span>
+                    </div>
+                    <div class="detail-group">
+                        <label>账户余额：</label>
+                        <span>${student.balance ? student.balance.toFixed(2) : '0.00'} 元</span>
+                    </div>
+                    <div class="detail-group">
+                        <label>账户状态：</label>
+                        <span class="${(student.account_status || student.accountStatus) ? 'text-success' : 'text-danger'}">
+                            ${(student.account_status || student.accountStatus) ? '正常' : '禁用'}
+                        </span>
+                    </div>
+                    <div class="detail-group">
+                        <label>注册时间：</label>
+                        <span>${createdAtStr || '未知'}</span>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('studentDetailContent').innerHTML = html;
+            
+            // 添加样式
+            const detailGroups = document.querySelectorAll('.detail-group');
+            detailGroups.forEach(group => {
+                group.style.marginBottom = '12px';
+                group.style.display = 'flex';
+            });
+            
+            const labels = document.querySelectorAll('.detail-group label');
+            labels.forEach(label => {
+                label.style.fontWeight = 'bold';
+                label.style.minWidth = '80px';
+            });
+            
+        } else {
+            document.getElementById('studentDetailContent').innerHTML = `
+                <div class="alert alert-warning">获取学生信息失败：${data.message || '未知错误'}</div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('获取学生详情失败:', error);
+        document.getElementById('studentDetailContent').innerHTML = `
+            <div class="alert alert-danger">获取学生详情失败：${error.message || '网络错误'}</div>
+        `;
+    });
+}
+
+/**
+ * 关闭学生详情模态框
+ */
+function closeStudentDetailModal() {
+    const modal = document.getElementById('studentDetailModal');
+    if (modal) {
+        modal.remove();
+    }
 }
 
 /**

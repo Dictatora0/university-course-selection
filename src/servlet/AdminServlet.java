@@ -67,6 +67,15 @@ public class AdminServlet extends HttpServlet {
             handleStatsRequests(req, resp, pathInfo, currentAdmin);
         } else if (pathInfo.startsWith("/transactions")) {
             handleTransactionRequests(req, resp, pathInfo, currentAdmin);
+        } else if (pathInfo.startsWith("/students/")) {
+            // 处理获取单个学生详情的请求
+            String studentId = pathInfo.substring("/students/".length());
+            // 移除可能的路径参数，例如 /students/S001/status
+            int slashIndex = studentId.indexOf('/');
+            if (slashIndex != -1) {
+                studentId = studentId.substring(0, slashIndex);
+            }
+            handleGetStudentById(req, resp, studentId);
         } else {
             resp.sendError(HttpServletResponse.SC_NOT_FOUND);
         }
@@ -636,6 +645,35 @@ public class AdminServlet extends HttpServlet {
             LOGGER.log(Level.SEVERE, "更新学生状态失败", e);
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
                     "更新学生状态失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 处理获取单个学生详情的请求
+     */
+    private void handleGetStudentById(HttpServletRequest req, HttpServletResponse resp, String studentId) throws IOException {
+        try {
+            if (studentId == null || studentId.trim().isEmpty()) {
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "学生ID不能为空");
+                return;
+            }
+            
+            // 查询学生信息
+            Student student = studentDAO.findById(studentId);
+            if (student == null) {
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "未找到学生: " + studentId);
+                return;
+            }
+            
+            // 出于安全考虑，不返回密码
+            student.setPassword(null);
+            
+            // 返回学生详情
+            ResponseUtil.sendSuccessResponse(resp, "获取学生详情成功", student);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "获取学生详情失败", e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
+                    "获取学生详情失败: " + e.getMessage());
         }
     }
 } 
