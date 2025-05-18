@@ -964,19 +964,35 @@ function loadStudentsList() {
             let html = '';
             
             data.data.forEach(student => {
+                // 使用下划线格式的字段名，这是后端API返回的格式
+                const studentId = student.student_id;
+                const createdAt = student.created_at;
+                const accountStatus = student.account_status;
+                
+                // 格式化日期（避免Invalid Date）
+                let dateStr = '';
+                try {
+                    if (createdAt) {
+                        dateStr = new Date(createdAt).toLocaleString();
+                    }
+                } catch (e) {
+                    console.error('日期格式化失败:', e);
+                    dateStr = createdAt || '';
+                }
+                
                 html += `
                     <tr>
-                        <td>${student.studentId}</td>
-                        <td>${student.name}</td>
-                        <td>${new Date(student.createdAt).toLocaleString()}</td>
+                        <td>${studentId || ''}</td>
+                        <td>${student.name || ''}</td>
+                        <td>${dateStr}</td>
                         <td>${student.balance ? student.balance.toFixed(2) : '0.00'}</td>
-                        <td>${student.status ? '正常' : '禁用'}</td>
+                        <td>${accountStatus ? '正常' : '禁用'}</td>
                         <td>
-                            <button class="btn btn-secondary btn-sm view-student-btn" data-id="${student.studentId}">
+                            <button class="btn btn-secondary btn-sm view-student-btn" data-id="${studentId}">
                                 <i class="bi bi-eye"></i>
                             </button>
-                            <button class="btn btn-warning btn-sm toggle-status-btn" data-id="${student.studentId}" data-status="${student.status}">
-                                ${student.status ? '<i class="bi bi-lock"></i>' : '<i class="bi bi-unlock"></i>'}
+                            <button class="btn btn-warning btn-sm toggle-status-btn" data-id="${studentId}" data-status="${accountStatus}">
+                                ${accountStatus ? '<i class="bi bi-lock"></i>' : '<i class="bi bi-unlock"></i>'}
                             </button>
                         </td>
                     </tr>
@@ -989,13 +1005,22 @@ function loadStudentsList() {
             document.querySelectorAll('.view-student-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const studentId = this.getAttribute('data-id');
-                    viewStudentDetail(studentId);
+                    if (studentId) {
+                        viewStudentDetail(studentId);
+                    } else {
+                        alert('获取学生ID失败');
+                    }
                 });
             });
             
             document.querySelectorAll('.toggle-status-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const studentId = this.getAttribute('data-id');
+                    if (!studentId) {
+                        alert('获取学生ID失败');
+                        return;
+                    }
+                    
                     const currentStatus = this.getAttribute('data-status') === 'true';
                     toggleStudentStatus(studentId, currentStatus);
                 });
@@ -1025,6 +1050,8 @@ function toggleStudentStatus(studentId, currentStatus) {
     const action = newStatus ? '启用' : '禁用';
     
     if (confirm(`确定要${action}学生 ${studentId} 吗？`)) {
+        console.log(`正在${action}学生: ${studentId}, 新状态: ${newStatus}`);
+        
         fetch(`/course-selection/api/admin/students/${studentId}/status`, {
             method: 'PUT',
             headers: {
@@ -1033,18 +1060,26 @@ function toggleStudentStatus(studentId, currentStatus) {
             body: JSON.stringify({ status: newStatus }),
             credentials: 'same-origin'
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
+                // 无论响应中的status是什么，我们都使用请求中设置的newStatus
+                console.log('状态更新成功，重新加载学生列表');
                 alert(`学生${action}成功`);
-                loadStudentsList(); // 重新加载学生列表
+                loadStudentsList(); // 重新加载学生列表来显示最新的状态
             } else {
+                console.error('状态更新失败', data);
                 alert(`学生${action}失败: ` + (data.message || '未知错误'));
             }
         })
         .catch(error => {
             console.error(`${action}学生失败:`, error);
-            alert(`${action}学生失败，请检查网络连接`);
+            alert(`${action}学生失败，请检查网络连接或服务器日志`);
         });
     }
 }
@@ -1296,6 +1331,247 @@ function saveProfile() {
         console.error('更新个人信息失败:', error);
         alert('更新个人信息失败，请检查网络连接');
     });
+}
+
+/**
+ * 显示添加管理员模态框
+ */
+function showAddAdminModal() {
+    // 创建模态框
+    let modalHtml = `
+        <div class="modal" id="addAdminModal">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">添加管理员</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close" id="closeAddAdminModalBtn">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="addAdminForm">
+                            <div class="form-group">
+                                <label for="newAdminId">管理员ID</label>
+                                <input type="text" class="form-control" id="newAdminId" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="newAdminName">姓名</label>
+                                <input type="text" class="form-control" id="newAdminName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="newAdminPassword">密码</label>
+                                <input type="password" class="form-control" id="newAdminPassword" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="newAdminRole">角色</label>
+                                <select class="form-control" id="newAdminRole" required>
+                                    <option value="">-- 请选择角色 --</option>
+                                    <option value="SUPER_ADMIN">超级管理员</option>
+                                    <option value="COURSE_ADMIN">课程管理员</option>
+                                    <option value="STUDENT_ADMIN">学生管理员</option>
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal" id="cancelAddAdminBtn">取消</button>
+                        <button type="button" class="btn btn-primary" id="saveAddAdminBtn">保存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // 添加到页面
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // 显示模态框
+    const modal = document.getElementById('addAdminModal');
+    modal.style.display = 'block';
+    modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+    modal.style.position = 'fixed';
+    modal.style.zIndex = '1000';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.overflow = 'auto';
+    modal.style.paddingTop = '50px';
+
+    // 设置模态框内容样式
+    const modalDialog = modal.querySelector('.modal-dialog');
+    modalDialog.style.margin = '10px auto';
+    modalDialog.style.maxWidth = '500px';
+    modalDialog.style.backgroundColor = '#fff';
+    modalDialog.style.borderRadius = '5px';
+    modalDialog.style.overflow = 'hidden';
+
+    // 事件监听
+    document.getElementById('closeAddAdminModalBtn').addEventListener('click', closeAddAdminModal);
+    document.getElementById('cancelAddAdminBtn').addEventListener('click', closeAddAdminModal);
+    document.getElementById('saveAddAdminBtn').addEventListener('click', saveAddAdmin);
+}
+
+/**
+ * 关闭添加管理员模态框
+ */
+function closeAddAdminModal() {
+    const modal = document.getElementById('addAdminModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+/**
+ * 保存添加的管理员
+ */
+function saveAddAdmin() {
+    const adminId = document.getElementById('newAdminId').value.trim();
+    const name = document.getElementById('newAdminName').value.trim();
+    const password = document.getElementById('newAdminPassword').value.trim();
+    const role = document.getElementById('newAdminRole').value.trim();
+
+    if (!adminId || !name || !password || !role) {
+        alert('请填写所有必填字段');
+        return;
+    }
+
+    const newAdmin = {
+        adminId: adminId,
+        name: name,
+        password: password,
+        role: role
+    };
+
+    fetch('/course-selection/api/admin', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newAdmin),
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('管理员添加成功');
+            closeAddAdminModal();
+            loadAdminsList(); // 重新加载管理员列表
+        } else {
+            alert('管理员添加失败: ' + (data.message || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('添加管理员失败:', error);
+        alert('添加管理员失败，请检查网络连接');
+    });
+}
+
+/**
+ * 加载管理员列表
+ */
+function loadAdminsList() {
+    document.getElementById('adminsList').innerHTML = '<tr><td colspan="6" class="loading">加载中...</td></tr>';
+    
+    fetch('/course-selection/api/admin/all', {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        // 检查响应状态
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // 检查内容类型是否为JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error(`非预期的响应格式：${contentType}，请检查API实现`);
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        if (data.success && data.data && data.data.length > 0) {
+            let html = '';
+            
+            data.data.forEach(admin => {
+                html += `
+                    <tr>
+                        <td>${admin.adminId}</td>
+                        <td>${admin.name}</td>
+                        <td>${getRoleName(admin.role)}</td>
+                        <td>${admin.createdAt ? new Date(admin.createdAt).toLocaleString() : '-'}</td>
+                        <td>${admin.lastLogin ? new Date(admin.lastLogin).toLocaleString() : '-'}</td>
+                        <td>
+                            <button class="btn btn-secondary btn-sm edit-admin-btn" data-id="${admin.adminId}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            ${admin.adminId !== window.currentAdmin.adminId ? 
+                                `<button class="btn btn-danger btn-sm delete-admin-btn" data-id="${admin.adminId}">
+                                    <i class="bi bi-trash"></i>
+                                </button>` : ''}
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            document.getElementById('adminsList').innerHTML = html;
+            
+            // 添加事件监听
+            document.querySelectorAll('.edit-admin-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const adminId = this.getAttribute('data-id');
+                    editAdmin(adminId);
+                });
+            });
+            
+            document.querySelectorAll('.delete-admin-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const adminId = this.getAttribute('data-id');
+                    deleteAdmin(adminId);
+                });
+            });
+        } else {
+            document.getElementById('adminsList').innerHTML = '<tr><td colspan="6">暂无管理员数据</td></tr>';
+        }
+    })
+    .catch(error => {
+        console.error('加载管理员列表失败:', error);
+        document.getElementById('adminsList').innerHTML = `<tr><td colspan="6">加载失败: ${error.message}</td></tr>`;
+    });
+}
+
+/**
+ * 编辑管理员
+ */
+function editAdmin(adminId) {
+    alert(`编辑管理员: ${adminId} 功能尚未实现`);
+}
+
+/**
+ * 删除管理员
+ */
+function deleteAdmin(adminId) {
+    if (confirm(`确定要删除管理员 ${adminId} 吗？此操作不可恢复！`)) {
+        fetch(`/course-selection/api/admin/${adminId}`, {
+            method: 'DELETE',
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('管理员删除成功');
+                loadAdminsList(); // 重新加载管理员列表
+            } else {
+                alert('管理员删除失败: ' + (data.message || '未知错误'));
+            }
+        })
+        .catch(error => {
+            console.error('删除管理员失败:', error);
+            alert('删除管理员失败，请检查网络连接');
+        });
+    }
 }
 
 // 其他函数将根据需要实现

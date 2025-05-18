@@ -333,30 +333,30 @@
                                     <h3 class="display-4" id="balanceAmount">¥ 0.00</h3>
                                     <button id="depositBtn" class="btn btn-success me-2 mt-2">充值</button>
                                     <button id="withdrawBtn" class="btn btn-warning mt-2">提现</button>
-                                </div>
-                            </div>
+                    </div>
+                </div>
                             <div id="depositForm" class="card mt-3" style="display: none;">
                                 <div class="card-header">充值</div>
                                 <div class="card-body">
                                     <div class="mb-3">
                                         <label for="depositAmountInput" class="form-label">充值金额</label>
                                         <input type="number" id="depositAmountInput" class="form-control" min="1" step="0.01" placeholder="输入金额">
-                                    </div>
+                    </div>
                                     <button id="confirmDepositBtn" class="btn btn-primary">确认充值</button>
                                     <button id="cancelDepositBtn" class="btn btn-secondary ms-2">取消</button>
-                                </div>
-                            </div>
+                    </div>
+                </div>
                             <div id="withdrawForm" class="card mt-3" style="display: none;">
                                 <div class="card-header">提现</div>
                                 <div class="card-body">
                                      <div class="mb-3">
                                         <label for="withdrawAmountInput" class="form-label">提现金额</label>
                                         <input type="number" id="withdrawAmountInput" class="form-control" min="1" step="0.01" placeholder="输入金额">
-                                    </div>
+                    </div>
                                     <button id="confirmWithdrawBtn" class="btn btn-primary">确认提现</button>
                                     <button id="cancelWithdrawBtn" class="btn btn-secondary ms-2">取消</button>
-                                </div>
-                            </div>
+                    </div>
+                </div>
                         </div>
                         <div class="col-md-7">
                             <div class="card">
@@ -368,11 +368,11 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </section>
-                
-                <!-- 我的好友 -->
-                <section id="friends" class="tab-content">
+                </div>
+            </section>
+            
+            <!-- 我的好友 -->
+            <section id="friends" class="tab-content">
                     <h2 class="mb-4">我的好友</h2>
                     <div class="row">
                         <!-- 左侧：好友操作区域 -->
@@ -419,7 +419,7 @@
                             <div class="card">
                                 <div class="card-header">
                                     <i class="bi bi-list-ul me-2"></i>我的好友与请求
-                                </div>
+                    </div>
                                 <div class="card-body">
                                     <input type="text" id="friendSearchInput" class="form-control mb-3" placeholder="在好友列表中搜索...">
                                     
@@ -483,30 +483,30 @@
                         <div class="card mb-4">
                             <div class="card-header bg-primary text-white">
                                 <h5 class="mb-0">个人档案</h5>
-                            </div>
+                    </div>
                             <div class="card-body text-center">
                                 <div class="profile-avatar mb-3" style="margin: 0 auto; width: 100px; height: 100px; border-radius: 50%; background-color: #6f42c1; color: white; font-size: 2.5rem; display: flex; align-items: center; justify-content: center;">
                                     <span id="profileAvatar">?</span>
-                                </div>
+                    </div>
                                 <h4 id="profileNameLarge">加载中...</h4>
                                 <p class="text-muted" id="profileDeptNameLarge">学院/系别</p>
                                 <div class="d-grid gap-2">
                                     <button class="btn btn-outline-primary" id="editProfileBtn">
                                         <i class="bi bi-pencil-square"></i> 编辑个人信息
                                     </button>
-                                </div>
-                            </div>
+                    </div>
+                    </div>
                             <div class="card-footer bg-light">
                                 <div class="d-flex justify-content-between">
                                     <div>
                                         <i class="bi bi-wallet2 text-success"></i> 账户余额
-                                    </div>
+                    </div>
                                     <strong id="profileBalanceDisplay">¥ 0.00</strong>
-                                </div>
+                </div>
                             </div>
                         </div>
-                    </div>
-                    
+    </div>
+    
                     <div class="col-md-8">
                         <div class="card">
                             <div class="card-header">
@@ -821,7 +821,7 @@
                         localStorage.removeItem('user');
                         localStorage.removeItem('userType');
                         window.location.href = 'index.html';
-                    } catch (error) {
+                } catch (error) {
                         console.error('退出登录失败:', error);
                         alert('退出失败: ' + error.message);
                     }
@@ -846,7 +846,7 @@
                             </div>
                             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
                         </div>
-                    </div>
+                        </div>
                 `;
                 toastContainer.insertAdjacentHTML('beforeend', toastHTML);
                 
@@ -865,7 +865,7 @@
                      if (balanceDisplay) {
                         balanceDisplay.textContent = `¥ ${parseFloat(studentInfo.balance || 0).toFixed(2)}`;
                     }
-                } catch (error) {
+            } catch (error) {
                     console.error('获取主页余额信息失败:', error);
                      const balanceDisplay = document.getElementById('mainBalanceAmount');
                     if (balanceDisplay) {

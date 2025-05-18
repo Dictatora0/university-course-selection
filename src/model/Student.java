@@ -26,6 +26,8 @@ public class Student {
     private String deptName;
     @SerializedName("status")
     private String status; // 额外字段，用于标识好友关系状态
+    @SerializedName("account_status")
+    private boolean accountStatus = true; // 账号状态：true=启用，false=禁用，默认启用
     @SerializedName("recommend_reason")
     private String recommendReason; // 推荐理由
     @SerializedName("reject_time")
@@ -167,6 +169,14 @@ public class Student {
         this.phone = phone;
     }
     
+    public boolean isAccountStatus() {
+        return accountStatus;
+    }
+    
+    public void setAccountStatus(boolean accountStatus) {
+        this.accountStatus = accountStatus;
+    }
+    
     @Override
     public String toString() {
         return "Student{" +
@@ -178,6 +188,7 @@ public class Student {
                 ", deptId='" + deptId + '\'' +
                 ", deptName='" + deptName + '\'' +
                 ", status='" + status + '\'' +
+                ", accountStatus=" + accountStatus +
                 ", balance=" + balance +
                 ", recommendReason='" + recommendReason + '\'' +
                 ", rejectTime=" + rejectTime +

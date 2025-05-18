@@ -11,4 +11,8 @@ CREATE TABLE Administrator (
     last_login TIMESTAMP NULL DEFAULT NULL
 );
 
+-- 插入默认管理员账号 (密码为明文 123456，实际应用中应该使用哈希值)
+INSERT INTO Administrator (admin_id, name, password, role) VALUES 
+('admin100', '系统管理员', '123456', 'SUPER_ADMIN');
+
 SELECT 'Administrator table created successfully' AS 'Execution Result'; 

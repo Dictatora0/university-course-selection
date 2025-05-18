@@ -9,6 +9,7 @@ import dao.EnrollmentDAO;
 import dao.TransactionDAO;
 import dao.LoginLogDao;
 import model.Administrator;
+import model.Student;
 import model.Transaction;
 import util.ResponseUtil;
 
@@ -53,13 +54,15 @@ public class AdminServlet extends HttpServlet {
              return;
         }
         Administrator currentAdmin = isAdminSessionValid(session) ? (Administrator) session.getAttribute("admin") : null;
-
+        
         if (pathInfo == null || pathInfo.equals("/")) {
             handleGetCurrentAdmin(req, resp);
         } else if (pathInfo.equals("/logout")) {
             handleLogout(req, resp);
         } else if (pathInfo.equals("/all")) {
             handleGetAllAdmins(req, resp);
+        } else if (pathInfo.equals("/students")) {
+            handleGetAllStudents(req, resp);
         } else if (pathInfo.startsWith("/stats")) {
             handleStatsRequests(req, resp, pathInfo, currentAdmin);
         } else if (pathInfo.startsWith("/transactions")) {
@@ -316,8 +319,8 @@ public class AdminServlet extends HttpServlet {
 
             if (pathInfo == null || pathInfo.equals("/")) {
                 handleCreateAdmin(req, resp);
-            } else {
-                resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+        } else {
+            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
             }
         }
     }
@@ -338,6 +341,10 @@ public class AdminServlet extends HttpServlet {
         if (pathInfo != null && pathInfo.matches("^/[^/]+/?$")) {
             String adminId = pathInfo.substring(1).replaceAll("/$", "");
             handleUpdateAdmin(req, resp, adminId);
+        } else if (pathInfo != null && pathInfo.matches("^/students/[^/]+/status$")) {
+            // 提取学生ID
+            String studentId = pathInfo.replaceAll("^/students/([^/]+)/status$", "$1");
+            handleUpdateStudentStatus(req, resp, studentId);
         } else {
             resp.sendError(HttpServletResponse.SC_NOT_FOUND, "无效的更新路径: " + pathInfo);
         }
@@ -395,14 +402,14 @@ public class AdminServlet extends HttpServlet {
      */
     private void handleGetCurrentAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
-        Administrator admin = (Administrator) session.getAttribute("admin");
-        Administrator safeAdmin = new Administrator();
-        safeAdmin.setAdminId(admin.getAdminId());
-        safeAdmin.setName(admin.getName());
-        safeAdmin.setRole(admin.getRole());
-        safeAdmin.setCreatedAt(admin.getCreatedAt());
-        safeAdmin.setLastLogin(admin.getLastLogin());
-        ResponseUtil.sendSuccessResponse(resp, "成功获取管理员信息", safeAdmin);
+            Administrator admin = (Administrator) session.getAttribute("admin");
+            Administrator safeAdmin = new Administrator();
+            safeAdmin.setAdminId(admin.getAdminId());
+            safeAdmin.setName(admin.getName());
+            safeAdmin.setRole(admin.getRole());
+            safeAdmin.setCreatedAt(admin.getCreatedAt());
+            safeAdmin.setLastLogin(admin.getLastLogin());
+            ResponseUtil.sendSuccessResponse(resp, "成功获取管理员信息", safeAdmin);
     }
 
     /**
@@ -490,7 +497,7 @@ public class AdminServlet extends HttpServlet {
         try {
             JsonObject requestBody = GSON.fromJson(req.getReader(), JsonObject.class);
             Administrator adminToUpdate = administratorDao.getAdministratorById(adminIdToUpdate);
-
+            
             if (adminToUpdate == null) {
                 ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "管理员不存在");
                 return;
@@ -565,6 +572,70 @@ public class AdminServlet extends HttpServlet {
             ResponseUtil.sendSuccessResponse(resp, "管理员删除成功", null);
         } else {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "管理员删除失败");
+        }
+    }
+
+    /**
+     * 处理获取所有学生列表的请求
+     * @param req HTTP请求
+     * @param resp HTTP响应
+     * @throws IOException IO异常
+     */
+    private void handleGetAllStudents(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        try {
+            List<Student> students = studentDAO.findAll();
+            
+            // 过滤敏感信息，不返回密码
+            for (Student student : students) {
+                student.setPassword(null);
+            }
+            
+            ResponseUtil.sendSuccessResponse(resp, "成功获取所有学生列表", students);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "获取所有学生列表失败", e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
+                    "获取所有学生列表失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 处理更新学生状态的请求
+     * @param req HTTP请求
+     * @param resp HTTP响应
+     * @param studentId 学生ID
+     * @throws IOException IO异常
+     */
+    private void handleUpdateStudentStatus(HttpServletRequest req, HttpServletResponse resp, String studentId) throws IOException {
+        try {
+            // 解析请求体中的JSON数据
+            JsonObject requestBody = GSON.fromJson(req.getReader(), JsonObject.class);
+            boolean status = requestBody.get("status").getAsBoolean();
+            
+            // 先检查学生是否存在
+            Student student = studentDAO.findById(studentId);
+            if (student == null) {
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "学生不存在: " + studentId);
+                return;
+            }
+            
+            // 更新学生状态
+            boolean updateSuccess = studentDAO.updateStatus(studentId, status);
+            
+            if (updateSuccess) {
+                // 更新成功，返回成功响应
+                Student updatedStudent = studentDAO.findById(studentId);
+                // 确保返回的学生对象使用正确的状态值
+                updatedStudent.setAccountStatus(status);
+                updatedStudent.setPassword(null); // 不返回密码信息
+                ResponseUtil.sendSuccessResponse(resp, "学生状态更新成功", updatedStudent);
+            } else {
+                // 更新失败，返回错误响应
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "学生状态更新失败");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "更新学生状态失败", e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
+                    "更新学生状态失败: " + e.getMessage());
         }
     }
 } 

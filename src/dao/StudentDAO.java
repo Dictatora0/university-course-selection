@@ -61,12 +61,15 @@ public class StudentDAO {
         
         try {
             conn = DBConnection.getConnection();
-            String sql = "SELECT * FROM Student";
+            String sql = "SELECT s.*, d.dept_name FROM student s LEFT JOIN department d ON s.dept_id = d.dept_id";
             pstmt = conn.prepareStatement(sql);
             rs = pstmt.executeQuery();
             
             while (rs.next()) {
                 Student student = mapResultSetToStudent(rs);
+                if (hasColumn(rs, "dept_name")) {
+                    student.setDeptName(rs.getString("dept_name"));
+                }
                 students.add(student);
             }
         } catch (SQLException e) {
@@ -378,6 +381,24 @@ public class StudentDAO {
         student.setAddress(rs.getString("address"));
         student.setPassword(rs.getString("password"));
         student.setCreatedAt(rs.getTimestamp("created_at"));
+        
+        // 检查并设置dept_id字段
+        if (hasColumn(rs, "dept_id")) {
+            student.setDeptId(rs.getString("dept_id"));
+        }
+        
+        // 检查并设置balance字段
+        if (hasColumn(rs, "balance")) {
+            student.setBalance(rs.getDouble("balance"));
+        }
+        
+        // 检查并设置accountStatus字段
+        if (hasColumn(rs, "account_status")) {
+            student.setAccountStatus(rs.getBoolean("account_status"));
+        } else {
+            student.setAccountStatus(true); // 默认为启用状态
+        }
+        
         return student;
     }
 
@@ -514,5 +535,30 @@ public class StudentDAO {
             }
         }
         return false;
+    }
+
+    /**
+     * 更新学生状态（启用/禁用）
+     * @param studentId 学生ID
+     * @param status 状态 (true=启用, false=禁用)
+     * @return 是否更新成功
+     */
+    public boolean updateStatus(String studentId, boolean status) {
+        String sql = "UPDATE Student SET account_status = ? WHERE student_id = ?";
+        
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            
+            pstmt.setBoolean(1, status);
+            pstmt.setString(2, studentId);
+            
+            int rowsAffected = pstmt.executeUpdate();
+            return rowsAffected > 0;
+            
+        } catch (SQLException e) {
+            System.err.println("[StudentDAO.updateStatus] SQLException: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
     }
 } 

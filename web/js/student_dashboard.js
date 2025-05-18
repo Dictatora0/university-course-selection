@@ -109,8 +109,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const studentDeptEl = document.getElementById('studentDept');
         if(studentDeptEl) studentDeptEl.textContent = user.deptName ? `(${user.deptName})` : '';
         
-        const today = new Date();
-        const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+    const today = new Date();
+    const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
         const currentDateEl = document.getElementById('currentDate');
         if(currentDateEl) currentDateEl.textContent = today.toLocaleDateString('zh-CN', options);
     }
@@ -218,9 +218,9 @@ document.addEventListener('DOMContentLoaded', function() {
             stopMessagePolling();
             
             await API.student.logout();
-            localStorage.removeItem('user');
-            localStorage.removeItem('userType');
-            
+        localStorage.removeItem('user');
+        localStorage.removeItem('userType');
+        
             // 使用相同的登录页URL
             console.log("退出登录，跳转到:", loginPageUrl);
             window.location.href = loginPageUrl;
@@ -534,8 +534,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 console.log(`规范化后的交易数据:`, transaction);
                 
-                const item = document.createElement('li');
-                item.className = 'list-group-item d-flex justify-content-between align-items-center';
+            const item = document.createElement('li');
+            item.className = 'list-group-item d-flex justify-content-between align-items-center';
                 const date = new Date(transaction.transactionDate).toLocaleString();
                 
                 // 默认为支出（红色负数）
@@ -594,7 +594,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     case 'REFUND': typeText = '退款'; break;
                 }
                 
-                item.innerHTML = `
+            item.innerHTML = `
                 <div>
                     <strong class="d-block">${typeText}</strong>
                     <small class="text-muted">${description}</small>
@@ -635,8 +635,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const container = document.getElementById('friendListContainer');
             if (!container) {
                 console.error("好友列表容器 'friendListContainer' 未找到。");
-                return;
-            }
+            return;
+        }
             container.innerHTML = ''; 
 
             // 处理API返回的数据格式，统一字段名
@@ -827,9 +827,9 @@ document.addEventListener('DOMContentLoaded', function() {
             resultsList.innerHTML = '';
             if (students.length === 0) {
                 resultsList.innerHTML = '<li class="list-group-item text-muted">未找到相关学生</li>';
-                return;
-            }
-            
+            return;
+        }
+        
             students.forEach(student => {
                 // 处理API返回的字段名不一致问题
                 const studentId = student.student_id || student.studentId;
@@ -841,23 +841,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     return; // 跳过没有ID的记录
                 }
                 
-                const item = document.createElement('li');
+            const item = document.createElement('li');
                 item.className = 'list-group-item search-result-item d-flex align-items-center';
                 const avatarLetter = (studentName || 'S').charAt(0).toUpperCase();
                 const avatarBgColor = getRandomColor(studentId || Math.random().toString());
 
-                item.innerHTML = `
+            item.innerHTML = `
                     <div class="friend-avatar" style="background-color: ${avatarBgColor};">${avatarLetter}</div>
                     <div class="search-result-info flex-grow-1">
                         <strong>${studentName} (${studentId})</strong>
                         <small class="d-block text-muted">院系: ${deptName || '未知'}</small>
-                    </div>
+                </div>
                     <div class="search-result-actions ms-auto">
                         <button class="btn btn-sm btn-outline-primary search-add-friend-btn" data-student-id="${studentId}">
                             <i class="bi bi-person-plus"></i> 添加
-                        </button>
-                    </div>
-                `;
+                    </button>
+                </div>
+            `;
                 resultsList.appendChild(item);
                 
                 // 使用事件委托添加点击事件
@@ -892,12 +892,12 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (!recommendations || recommendations.length === 0) {
                 listElement.innerHTML = '<li class="list-group-item text-muted text-center">暂无好友推荐</li>';
-                return;
-            }
+            return;
+        }
             
             console.log("好友推荐数据:", recommendations);
-            
-            recommendations.forEach(friend => {
+        
+        recommendations.forEach(friend => {
                 // 确保studentId字段存在，规范化API返回的数据
                 const studentId = friend.student_id || friend.studentId;
                 const name = friend.name || '未知姓名';
@@ -908,22 +908,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     return; // 跳过没有ID的记录
                 }
                 
-                const item = document.createElement('li');
+            const item = document.createElement('li');
                 item.className = 'list-group-item recommendation-item d-flex align-items-center';
                 const avatarLetter = (name.charAt(0) || 'R').toUpperCase();
                 const avatarBgColor = getRandomColor(studentId || Math.random().toString());
                 
-                item.innerHTML = `
+            item.innerHTML = `
                     <div class="friend-avatar" style="background-color: ${avatarBgColor};">${avatarLetter}</div>
                     <div class="recommendation-info flex-grow-1">
                         <strong>${name} (${studentId})</strong>
                         <small class="d-block text-muted">院系: ${deptName}</small>
                         ${friend.recommendReason ? `<small class="text-success d-block fst-italic">${friend.recommendReason}</small>` : ''}
-                    </div>
+                </div>
                     <div class="recommendation-actions ms-auto">
                         <button class="btn btn-sm btn-outline-primary add-friend-btn" data-student-id="${studentId}">
                             <i class="bi bi-person-plus"></i> 添加
-                        </button>
+                </button>
                     </div>
                 `;
                 
@@ -1221,7 +1221,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (msgDate.toDateString() === now.toDateString()) {
                         // 如果是今天，则显示时间
                         timeDisplay = msgDate.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
-                    } else {
+                } else {
                         // 否则显示日期
                         timeDisplay = msgDate.toLocaleDateString('zh-CN', {month: 'numeric', day: 'numeric'});
                     }
@@ -1241,7 +1241,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 `;
                 item.onclick = (e) => {
-                    e.preventDefault();
+            e.preventDefault();
                     openMainChat(normalizedContact.studentId, normalizedContact.name);
                 };
                 listElement.appendChild(item);
@@ -1303,9 +1303,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (friends.length === 0) {
                 window.showToast("您没有好友，请先添加好友", "warning");
-                return;
-            }
-            
+            return;
+        }
+        
             // 为每个好友发送一条测试消息
             for (const friend of friends) {
                 const message = `这是一条测试消息，发送时间：${new Date().toLocaleString()}`;
@@ -1357,7 +1357,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="flex-grow-1">
                         <strong class="d-block">${contact.name}</strong>
                         <small class="d-block text-muted text-truncate" style="max-width: 150px;">${contact.lastMessage ? contact.lastMessage : '暂无消息'}</small>
-                    </div>
+                </div>
                 </div>
                 ${contact.unreadCount > 0 ? `<span class="badge bg-danger rounded-pill">${contact.unreadCount}</span>` : ''}
             `;
@@ -1499,9 +1499,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (!messages || !Array.isArray(messages) || messages.length === 0) {
                 container.innerHTML = '<p class="text-center my-auto text-muted">暂无聊天记录</p>';
-                return;
-            }
-            
+            return;
+        }
+        
             const currentUserId = user.studentId;
             messages.forEach(msg => {
                 appendMessageToContainer(msg, currentUserId, container);
@@ -1514,7 +1514,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function appendMessageToContainer(message, currentUserId, containerElement) {
-        const messageDiv = document.createElement('div');
+            const messageDiv = document.createElement('div');
         const isSent = message.fromStudentId === currentUserId;
         messageDiv.className = `chat-message ${isSent ? 'message-sent' : 'message-received'}`;
         
@@ -1524,7 +1524,7 @@ document.addEventListener('DOMContentLoaded', function() {
             sendTime = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
         }
         
-        messageDiv.innerHTML = `
+            messageDiv.innerHTML = `
             <div>${escapeHTML(message.content)}</div>
             <small class="message-time">${sendTime}</small>
         `;
@@ -1836,7 +1836,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const month = String(birthDate.getMonth() + 1).padStart(2, '0');
                     const day = String(birthDate.getDate()).padStart(2, '0');
                     document.getElementById('editBirthDate').value = `${year}-${month}-${day}`;
-                } else {
+            } else {
                     document.getElementById('editBirthDate').value = '';
                 }
                 
@@ -1979,10 +1979,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 // 添加院系选项
-                departments.forEach(dept => {
-                    const option = document.createElement('option');
+        departments.forEach(dept => {
+            const option = document.createElement('option');
                     option.value = dept.deptId;
-                    option.textContent = dept.deptName;
+            option.textContent = dept.deptName;
                     
                     // 设置当前院系为选中状态
                     if (dept.deptId === currentDeptId) {

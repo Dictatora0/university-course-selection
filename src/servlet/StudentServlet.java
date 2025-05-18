@@ -58,7 +58,7 @@ public class StudentServlet extends BaseServlet {
         System.out.println("[StudentServlet.login] 解析后的密码: " + loginInfo.getPassword());
         
         Student student = studentDAO.validateLogin(loginInfo.getStudentId(), loginInfo.getPassword());
-
+        
         if (student != null) {
             System.out.println("[StudentServlet.login] 登录成功: " + loginInfo.getStudentId());
             HttpSession session = req.getSession(true);
@@ -70,7 +70,7 @@ public class StudentServlet extends BaseServlet {
             ResponseUtil.sendError(resp, "学号或密码错误");
         }
     }
-
+    
     public void register(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         System.out.println("[StudentServlet.register] 开始处理注册请求");
         BufferedReader reader = req.getReader();
@@ -122,7 +122,7 @@ public class StudentServlet extends BaseServlet {
             ResponseUtil.sendError(resp, "学号、姓名和密码不能为空");
             return;
         }
-
+        
         System.out.println("[StudentServlet.register] 准备添加学生: " + registerInfo);
         
         boolean success = studentDAO.add(registerInfo);
@@ -135,7 +135,7 @@ public class StudentServlet extends BaseServlet {
             ResponseUtil.sendError(resp, "注册失败，请稍后再试");
         }
     }
-
+    
     public void logout(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
         if (session != null) {
@@ -243,7 +243,7 @@ public class StudentServlet extends BaseServlet {
             ResponseUtil.sendError(resp, "未知操作: " + pathInfo);
         }
     }
-
+    
     public void importCourses(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
         if (session == null || session.getAttribute("student") == null) {
@@ -261,7 +261,7 @@ public class StudentServlet extends BaseServlet {
             String line;
             List<Map<String, Object>> coursesList = new ArrayList<>();
             List<String> errors = new ArrayList<>();
-
+            
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
                 if (values.length < 7) {
