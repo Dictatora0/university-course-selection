@@ -201,4 +201,79 @@ public class TransactionDAO {
         }
         return transactions;
     }
+
+    /**
+     * 获取指定用户当日的转账总金额
+     * @param studentId 学生ID
+     * @param date 日期，只考虑日期部分
+     * @return 当日转账总金额
+     */
+    public BigDecimal getDailyTransferSum(String studentId, java.util.Date date) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        BigDecimal sum = BigDecimal.ZERO;
+
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT SUM(ABS(amount)) FROM Transaction " +
+                        "WHERE student_id = ? AND type = 'TRANSFER' " +
+                        "AND DATE(transaction_time) = DATE(?)";
+            
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setString(1, studentId);
+            pstmt.setTimestamp(2, new Timestamp(date.getTime()));
+            
+            rs = pstmt.executeQuery();
+            if (rs.next()) {
+                BigDecimal result = rs.getBigDecimal(1);
+                if (result != null) {
+                    sum = result;
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try { if (rs != null) rs.close(); } catch (SQLException e) { e.printStackTrace(); }
+            try { if (pstmt != null) pstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { e.printStackTrace(); }
+        }
+        return sum;
+    }
+
+    /**
+     * 获取指定用户当日的转账次数
+     * @param studentId 学生ID
+     * @param date 日期，只考虑日期部分
+     * @return 当日转账次数
+     */
+    public int getDailyTransferCount(String studentId, java.util.Date date) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        int count = 0;
+
+        try {
+            conn = DBConnection.getConnection();
+            String sql = "SELECT COUNT(*) FROM Transaction " +
+                        "WHERE student_id = ? AND type = 'TRANSFER' " +
+                        "AND DATE(transaction_time) = DATE(?)";
+            
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setString(1, studentId);
+            pstmt.setTimestamp(2, new Timestamp(date.getTime()));
+            
+            rs = pstmt.executeQuery();
+            if (rs.next()) {
+                count = rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try { if (rs != null) rs.close(); } catch (SQLException e) { e.printStackTrace(); }
+            try { if (pstmt != null) pstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { e.printStackTrace(); }
+        }
+        return count;
+    }
 }

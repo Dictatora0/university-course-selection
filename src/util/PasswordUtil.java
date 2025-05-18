@@ -45,4 +45,27 @@ public class PasswordUtil {
         String hashedInputPassword = hashPassword(inputPassword);
         return hashedPasswordFromDB.equals(hashedInputPassword);
     }
+    
+    /**
+     * 用于测试密码哈希功能的主方法
+     */
+    public static void main(String[] args) {
+        // 从命令行读取密码
+        java.util.Scanner scanner = new java.util.Scanner(System.in);
+        System.out.print("请输入要哈希的密码: ");
+        String password = scanner.nextLine();
+        scanner.close();
+        
+        // 生成哈希值
+        String hashedPassword = hashPassword(password);
+        System.out.println("原始密码: " + password);
+        System.out.println("哈希后密码: " + hashedPassword);
+        
+        // 检查哈希值匹配
+        System.out.println("验证结果: " + checkPassword(password, hashedPassword));
+        
+        // 从数据库中查询的哈希值
+        String knownHashFromDB = "jZae727K08KaOmKSgOaGzww/XVqGr/PKEgIMkjrcbJI="; // 123456的哈希值
+        System.out.println("与数据库中的哈希值匹配: " + checkPassword(password, knownHashFromDB));
+    }
 } 

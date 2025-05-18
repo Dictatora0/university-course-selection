@@ -22,7 +22,7 @@ import java.util.logging.Logger;
 /**
  * 处理消息相关请求的Servlet
  */
-@WebServlet("/api/messages/*")
+@WebServlet("/api/message/*")
 public class MessageServlet extends BaseServlet {
     private static final Logger LOGGER = Logger.getLogger(MessageServlet.class.getName());
     private final MessageDAO messageDao = new MessageDAO();
@@ -59,8 +59,11 @@ public class MessageServlet extends BaseServlet {
             String content = null;
             
             try {
-                if (requestData.has("receiverId")) {
-                    receiverId = requestData.get("receiverId").getAsString().trim();
+                if (requestData.has("toId")) {
+                    receiverId = requestData.get("toId").getAsString().trim();
+                } else if (requestData.has("toStudentId")) {
+                    // 向下兼容，保留对toStudentId的支持
+                    receiverId = requestData.get("toStudentId").getAsString().trim();
                 }
                 if (requestData.has("content")) {
                     content = requestData.get("content").getAsString().trim();

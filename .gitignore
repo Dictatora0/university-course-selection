@@ -71,6 +71,7 @@ tmp/
 
 # VS Code
 .vscode/
+.cursorrules
 
 # Compiled JSPs
 *.jsp.java

@@ -14,32 +14,48 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // 模拟登录功能（由于没有后端API，这里做前端模拟）
-            // 检查是否是预设的测试账号
-            if ((studentId === '2021001' || studentId === '2021002' || 
-                 studentId === '2021003' || studentId === '2021004' || 
-                 studentId === '2021005') && password === '123456') {
-                
-                // 保存用户信息到本地存储
-                const user = {
-                    studentId: studentId,
-                    name: studentId === '2021001' ? '张三' : 
-                          studentId === '2021002' ? '李四' :
-                          studentId === '2021003' ? '王五' :
-                          studentId === '2021004' ? '赵六' : '钱七'
-                };
-                
-                localStorage.setItem('user', JSON.stringify(user));
-                localStorage.setItem('userType', 'student');
-                
-                // 记录登录成功信息到控制台
-                console.log('学生登录成功:', user);
-                
-                // 重定向到学生主页
-                window.location.href = 'student_dashboard.html';
-            } else {
-                alert('账号或密码错误！请使用测试账号 (2021001-2021005) 和密码 (123456)');
+            // 格式化学号，确保以S开头
+            let formattedStudentId = studentId;
+            if (!formattedStudentId.startsWith('S')) {
+                formattedStudentId = 'S' + formattedStudentId;
             }
+            
+            // 调用API登录
+            fetch('/course-selection/api/students/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    student_id: formattedStudentId,
+                    password: password
+                }),
+                credentials: 'include'
+            })
+            .then(response => {
+                console.log('登录响应状态:', response.status, response.statusText);
+                return response.json().catch(error => {
+                    console.error('解析JSON失败:', error);
+                    throw new Error('服务器响应格式错误');
+                });
+            })
+            .then(data => {
+                console.log('登录响应数据:', data);
+                
+                if (data.success) {
+                    // 登录成功，跳转到主页
+                    console.log('登录成功，准备跳转到学生仪表盘');
+                    window.location.href = 'student_dashboard.html';
+                } else {
+                    // 登录失败，显示错误信息
+                    console.error('登录失败:', data.message);
+                    alert(data.message || '登录失败，请检查学号和密码');
+                }
+            })
+            .catch(error => {
+                console.error('登录请求发生错误:', error);
+                alert('网络错误，请稍后再试');
+            });
         });
     }
     
@@ -58,23 +74,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // 模拟管理员登录
-            if (adminId === 'admin' && password === 'admin123') {
-                const admin = {
-                    adminId: 'admin',
-                    name: '系统管理员'
-                };
-                
-                localStorage.setItem('user', JSON.stringify(admin));
-                localStorage.setItem('userType', 'admin');
-                
-                // 记录登录成功信息到控制台
-                console.log('管理员登录成功:', admin);
-                
+            // 调用API登录
+            fetch('/course-selection/api/admin/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    admin_id: adminId,
+                    password: password
+                }),
+                credentials: 'include'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = 'admin_dashboard.html';
+                } else {
+                    alert(data.message || '管理员账号或密码错误');
+                }
+            })
+            .catch(error => {
+                console.error('管理员登录失败:', error);
                 alert('管理员登录功能尚未实现，请使用学生账号登录');
-            } else {
-                alert('管理员账号或密码错误！请使用账号 admin 和密码 admin123');
-            }
+            });
         });
     }
 }); 

@@ -167,4 +167,14 @@ public class TransactionServlet extends BaseServlet {
     public void list(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         handleGetStudentTransactions(req, resp);
     }
+    
+    // 处理根路径请求的方法
+    public void index(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        handleGetStudentTransactions(req, resp);
+    }
+    
+    // 处理空字符串路径的方法
+    public void root(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        handleGetStudentTransactions(req, resp);
+    }
 } 

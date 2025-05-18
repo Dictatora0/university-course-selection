@@ -4,211 +4,290 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>学生主页 - 在线选课系统</title>
+    <!-- 使用Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <link rel="stylesheet" href="css/style.css">
     <style>
-        .balance-info {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f8f9fa;
         }
-        
-        .balance-amount {
-            font-size: 24px;
-            color: #2ecc71;
-            font-weight: bold;
-        }
-        
-        .payment-buttons {
-            margin-top: 15px;
-            display: flex;
-            gap: 10px;
-        }
-        
-        .payment-form {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            margin-top: 20px;
-            display: none;
-        }
-        
-        .friend-list {
-            margin-top: 20px;
-        }
-        
-        .friend-item {
-            background-color: #fff;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 10px;
+
+        .dashboard-header {
+            background-color: #007bff;
+            color: white;
+            padding: 1rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
+
+        .dashboard-header h1 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .user-info span {
+            margin-right: 15px;
+        }
+
+        .sidebar {
+            background-color: #343a40;
+            padding-top: 1rem;
+            min-height: calc(100vh - 56px); /* 假设header高度为56px */
+        }
+
+        .sidebar .nav-link {
+            color: #adb5bd;
+            padding: 0.75rem 1rem;
+        }
+
+        .sidebar .nav-link.active,
+        .sidebar .nav-link:hover {
+            color: white;
+            background-color: #007bff;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .tab-content {
+            display: none;
+        }
         
-        .friend-info {
-            display: flex;
-            align-items: center;
+        .tab-content.active {
+            display: block;
+        }
+
+        .card-header {
+            font-weight: bold;
         }
         
         .friend-avatar {
-            width: 40px;
-            height: 40px;
-            background-color: #3498db;
-            color: white;
+            width: 45px;
+            height: 45px;
             border-radius: 50%;
             display: flex;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
+            color: white;
             font-weight: bold;
             margin-right: 15px;
         }
         
-        .friend-actions {
+        .friend-item, .search-result-item, .recommendation-item {
             display: flex;
-            gap: 10px;
-        }
-        
-        .btn-message {
-            background-color: #3498db;
-            color: white;
-        }
-        
-        .btn-message:hover {
-            background-color: #2980b9;
-        }
-        
-        .btn-delete-friend {
-            background-color: #e74c3c;
-            color: white;
-        }
-        
-        .btn-delete-friend:hover {
-            background-color: #c0392b;
-        }
-        
-        .search-friend-form {
-            display: flex;
-            margin-bottom: 20px;
-            gap: 10px;
-        }
-        
-        .search-friend-form input {
-            flex: 1;
+            align-items: center;
             padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .friend-item:last-child, .search-result-item:last-child, .recommendation-item:last-child {
+            border-bottom: none;
+        }
+
+        .friend-info, .search-result-info, .recommendation-info {
+            flex-grow: 1;
+        }
+        .friend-info strong, .search-result-info strong, .recommendation-info strong {
+            display: block;
+            font-size: 1.1em;
+        }
+         .friend-info small, .search-result-info small, .recommendation-info small {
+            color: #6c757d;
+        }
+        
+        .friend-actions button, .search-result-actions button, .recommendation-actions button {
+            margin-left: 5px;
+        }
+
+        /* Chat window styles */
+        .chat-window {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 350px;
+            max-height: 450px;
+            background-color: white;
             border: 1px solid #ddd;
-            border-radius: 4px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: none; /* Initially hidden */
+            flex-direction: column;
+            z-index: 1050; /* Ensure it's above other elements */
         }
-        
-        .transaction-item {
-            background-color: #fff;
+
+        .chat-window-header {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+        .chat-window-header strong {
+            font-size: 1.1rem;
+        }
+
+        .chat-window-body {
+            flex-grow: 1;
             padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 10px;
-        }
-        
-        .transaction-item .amount {
-            font-weight: bold;
-        }
-        
-        .transaction-item .amount.deposit {
-            color: #2ecc71;
-        }
-        
-        .transaction-item .amount.withdraw {
-            color: #e74c3c;
-        }
-        
-        .transaction-date {
-            color: #7f8c8d;
-            font-size: 14px;
-        }
-        
-        .message-container {
-            max-height: 400px;
             overflow-y: auto;
-            margin-bottom: 20px;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-radius: 8px;
+            background-color: #f8f9fa;
+            display: flex;
+            flex-direction: column;
         }
-        
-        .message {
-            padding: 10px;
+
+        .chat-message {
+            padding: 8px 12px;
+            border-radius: 18px;
             margin-bottom: 10px;
-            border-radius: 8px;
-            max-width: 80%;
+            max-width: 75%;
+            word-wrap: break-word;
         }
         
         .message-sent {
-            background-color: #3498db;
+            background-color: #007bff;
             color: white;
-            margin-left: auto;
+            align-self: flex-end;
+            border-bottom-right-radius: 5px;
         }
         
         .message-received {
-            background-color: #ecf0f1;
-            color: #2c3e50;
+            background-color: #e9ecef;
+            color: #333;
+            align-self: flex-start;
+            border-bottom-left-radius: 5px;
         }
-        
-        .message-form {
-            display: flex;
-            gap: 10px;
+         .message-time {
+            font-size: 0.75em;
+            color: #888;
+            display: block;
+            margin-top: 3px;
         }
-        
-        .message-form textarea {
-            flex: 1;
+        .message-sent .message-time {
+            color: #f0f0f0;
+            text-align: right;
+        }
+         .message-received .message-time {
+            text-align: left;
+        }
+
+
+        .chat-window-footer {
             padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            resize: none;
+            border-top: 1px solid #ddd;
         }
         
-        .message-form button {
-            padding: 10px 15px;
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1055; /* Higher than chat window */
         }
-        
-        .chat-container {
-            display: none;
-        }
+
     </style>
 </head>
 <body>
     <header class="dashboard-header">
-        <h1>在线选课系统</h1>
+        <h1>在线选课系统 - 学生端</h1>
         <div class="user-info">
             <span id="studentName">加载中...</span>
-            <button id="logoutBtn">退出登录</button>
+            <span id="studentDept" class="text-light"></span>
+            <button id="logoutBtn" class="btn btn-danger btn-sm">退出登录</button>
         </div>
     </header>
     
-    <div class="dashboard-container">
-        <nav class="sidebar">
-            <ul>
-                <li><a href="#" class="active" data-tab="courses">可选课程</a></li>
-                <li><a href="#" data-tab="my-courses">我的课程</a></li>
-                <li><a href="#" data-tab="payment">我的钱包</a></li>
-                <li><a href="#" data-tab="friends">我的好友</a></li>
-                <li><a href="#" data-tab="profile">个人信息</a></li>
+    <div class="container-fluid">
+        <div class="row">
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#" data-tab="dashboardMain">
+                                <i class="bi bi-house-door"></i> 主页
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-tab="courses">
+                                <i class="bi bi-book"></i> 可选课程
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-tab="my-courses">
+                                <i class="bi bi-check-circle"></i> 我的课程
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-tab="payment">
+                                <i class="bi bi-wallet2"></i> 我的钱包
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-tab="friends">
+                                <i class="bi bi-people"></i> 我的好友
+                            </a>
+                        </li>
+                         <li class="nav-item">
+                            <a class="nav-link" href="#" data-tab="messages">
+                                <i class="bi bi-chat-dots"></i> 我的消息
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-tab="profile">
+                                <i class="bi bi-person-circle"></i> 个人信息
+                            </a>
+                        </li>
             </ul>
+                </div>
         </nav>
         
-        <main class="content">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 content">
+                <!-- 主页内容 -->
+                <section id="dashboardMain" class="tab-content active">
+                    <h2>欢迎回来, <span id="welcomeName">同学</span>!</h2>
+                    <p>今天是 <span id="currentDate"></span></p>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">快捷操作</div>
+                                <div class="card-body">
+                                    <button class="btn btn-primary me-2" data-tab-target="courses">浏览可选课程</button>
+                                    <button class="btn btn-info" data-tab-target="my-courses">查看我的课表</button>
+                                </div>
+                            </div>
+                        </div>
+                         <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">账户余额</div>
+                                <div class="card-body">
+                                    <h3 id="mainBalanceAmount">¥ 0.00</h3>
+                                    <button class="btn btn-success btn-sm" data-tab-target="payment">前往钱包</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
             <!-- 可选课程 -->
-            <section id="courses" class="tab-content active">
+                <section id="courses" class="tab-content">
                 <h2>可选课程列表</h2>
-                <div class="filter-bar">
-                    <select id="deptFilter">
-                        <option value="">全部院系</option>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <input type="text" id="courseSearchInput" class="form-control" placeholder="搜索课程名称或编号...">
+                        </div>
+                        <div class="col-md-4">
+                            <select id="deptFilter" class="form-select">
+                                <option value="">全部分院/系</option>
+                                <!-- 院系选项将由JS动态填充 -->
                     </select>
                 </div>
-                <table class="course-table">
-                    <thead>
+                    </div>
+                    <table class="table table-hover">
+                        <thead class="table-light">
                         <tr>
                             <th>课程编号</th>
                             <th>课程名称</th>
@@ -218,9 +297,7 @@
                         </tr>
                     </thead>
                     <tbody id="coursesList">
-                        <tr>
-                            <td colspan="5" class="loading">加载中...</td>
-                        </tr>
+                            <tr><td colspan="5" class="text-center">加载中...</td></tr>
                     </tbody>
                 </table>
             </section>
@@ -228,8 +305,8 @@
             <!-- 我的课程 -->
             <section id="my-courses" class="tab-content">
                 <h2>我的已选课程</h2>
-                <table class="course-table">
-                    <thead>
+                    <table class="table table-striped">
+                         <thead class="table-light">
                         <tr>
                             <th>课程编号</th>
                             <th>课程名称</th>
@@ -240,9 +317,7 @@
                         </tr>
                     </thead>
                     <tbody id="myCoursesList">
-                        <tr>
-                            <td colspan="6" class="loading">加载中...</td>
-                        </tr>
+                             <tr><td colspan="6" class="text-center">加载中...</td></tr>
                     </tbody>
                 </table>
             </section>
@@ -250,625 +325,405 @@
             <!-- 我的钱包 -->
             <section id="payment" class="tab-content">
                 <h2>我的钱包</h2>
+                    <div class="row">
+                        <div class="col-md-5">
+                            <div class="card">
+                                <div class="card-header">账户余额</div>
+                                <div class="card-body">
+                                    <h3 class="display-4" id="balanceAmount">¥ 0.00</h3>
+                                    <button id="depositBtn" class="btn btn-success me-2 mt-2">充值</button>
+                                    <button id="withdrawBtn" class="btn btn-warning mt-2">提现</button>
+                                </div>
+                            </div>
+                            <div id="depositForm" class="card mt-3" style="display: none;">
+                                <div class="card-header">充值</div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label for="depositAmountInput" class="form-label">充值金额</label>
+                                        <input type="number" id="depositAmountInput" class="form-control" min="1" step="0.01" placeholder="输入金额">
+                                    </div>
+                                    <button id="confirmDepositBtn" class="btn btn-primary">确认充值</button>
+                                    <button id="cancelDepositBtn" class="btn btn-secondary ms-2">取消</button>
+                                </div>
+                            </div>
+                            <div id="withdrawForm" class="card mt-3" style="display: none;">
+                                <div class="card-header">提现</div>
+                                <div class="card-body">
+                                     <div class="mb-3">
+                                        <label for="withdrawAmountInput" class="form-label">提现金额</label>
+                                        <input type="number" id="withdrawAmountInput" class="form-control" min="1" step="0.01" placeholder="输入金额">
+                                    </div>
+                                    <button id="confirmWithdrawBtn" class="btn btn-primary">确认提现</button>
+                                    <button id="cancelWithdrawBtn" class="btn btn-secondary ms-2">取消</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-7">
+                            <div class="card">
+                                <div class="card-header">交易记录</div>
+                                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                                    <ul id="transactionList" class="list-group list-group-flush">
+                                        <li class="list-group-item text-center">加载中...</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
                 
-                <div class="balance-info">
-                    <h3>账户余额</h3>
-                    <div class="balance-amount" id="balanceAmount">¥ 0.00</div>
-                    
-                    <div class="payment-buttons">
-                        <button id="depositBtn" class="btn-enroll">充值</button>
-                        <button id="withdrawBtn" class="btn-drop">提现</button>
+                <!-- 我的好友 -->
+                <section id="friends" class="tab-content">
+                    <h2 class="mb-4">我的好友</h2>
+                    <div class="row">
+                        <!-- 左侧：好友操作区域 -->
+                        <div class="col-lg-4 mb-4 mb-lg-0">
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <i class="bi bi-search me-2"></i>查找与添加好友
+                                </div>
+                                <div class="card-body">
+                                    <form id="addFriendForm" class="mb-3">
+                                        <div class="input-group">
+                                            <input type="text" id="addFriendIdInput" class="form-control" placeholder="输入学号添加好友" required>
+                                            <button type="submit" class="btn btn-primary"><i class="bi bi-person-plus"></i> 添加</button>
+                                        </div>
+                                    </form>
+                                    
+                                    <hr>
+                                    <h6><i class="bi bi-binoculars me-2"></i>搜索其他学生</h6>
+                                    <div class="input-group mb-3">
+                                        <input type="text" id="studentSearchKeywordInput" class="form-control" placeholder="输入姓名/学号搜索">
+                                        <button class="btn btn-outline-secondary" type="button" id="searchStudentBtn"><i class="bi bi-search"></i> 搜索</button>
+                    </div>
+                                    <ul id="searchResultsList" class="list-group" style="max-height: 200px; overflow-y: auto;">
+                                        <!-- 搜索结果将显示在这里 -->
+                                    </ul>
                     </div>
                 </div>
                 
-                <!-- 充值表单 -->
-                <div id="depositForm" class="payment-form">
-                    <h3>充值金额</h3>
-                    <div class="form-group">
-                        <input type="number" id="depositAmount" min="1" step="0.01" placeholder="请输入充值金额">
+                            <div class="card">
+                                <div class="card-header">
+                                   <i class="bi bi-stars me-2"></i>推荐好友
+                                </div>
+                                <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                                    <ul id="recommendedFriendsList" class="list-group list-group-flush">
+                                        <!-- 好友推荐将通过JS填充 -->
+                                        <li class="list-group-item text-center">加载中...</li>
+                                    </ul>
                     </div>
-                    <div class="payment-buttons">
-                        <button id="confirmDepositBtn" class="btn-enroll">确认充值</button>
-                        <button id="cancelDepositBtn" class="btn-drop">取消</button>
-                    </div>
-                </div>
-                
-                <!-- 提现表单 -->
-                <div id="withdrawForm" class="payment-form">
-                    <h3>提现金额</h3>
-                    <div class="form-group">
-                        <input type="number" id="withdrawAmount" min="1" step="0.01" placeholder="请输入提现金额">
-                    </div>
-                    <div class="payment-buttons">
-                        <button id="confirmWithdrawBtn" class="btn-enroll">确认提现</button>
-                        <button id="cancelWithdrawBtn" class="btn-drop">取消</button>
                     </div>
                 </div>
                 
-                <h3 style="margin-top: 30px">交易记录</h3>
-                <div id="transactionList" class="transaction-list">
-                    <p class="loading">加载中...</p>
+                        <!-- 右侧：好友列表与请求 -->
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="bi bi-list-ul me-2"></i>我的好友与请求
+                                </div>
+                                <div class="card-body">
+                                    <input type="text" id="friendSearchInput" class="form-control mb-3" placeholder="在好友列表中搜索...">
+                                    
+                                    <!-- 好友列表与请求容器 -->
+                                    <div id="friendListContainer">
+                                        <!-- JS将在此处填充内容，例如：-->
+                                        <!-- <h5>我的好友 (<span id="acceptedFriendsCount">0</span>)</h5> -->
+                                        <!-- <div id="acceptedFriendsList" class="friend-category-list"></div> -->
+                                        <!-- <h5>收到的请求 (<span id="receivedRequestsCount">0</span>)</h5> -->
+                                        <!-- <div id="receivedRequestsList" class="friend-category-list"></div> -->
+                                        <!-- etc. -->
+                                        <p class="text-center">加载中...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                 </div>
             </section>
             
-            <!-- 我的好友 -->
-            <section id="friends" class="tab-content">
-                <h2>我的好友</h2>
-                
-                <div class="search-friend-form">
-                    <input type="text" id="friendIdInput" placeholder="请输入学号添加好友">
-                    <button id="addFriendBtn" class="btn-enroll">添加好友</button>
+                 <!-- 我的消息（聊天主界面） -->
+                <section id="messages" class="tab-content">
+                    <h2 class="mb-4"><i class="bi bi-chat-left-text"></i> 我的消息</h2>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">最近联系人</div>
+                                <div id="recentContactsList" class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                                    <!-- 联系人将由JS填充 -->
+                                    <p class="list-group-item text-center">加载中...</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header" id="chattingWithHeader">
+                                    与 <strong id="chattingWithName">...</strong> 聊天中
+                                </div>
+                                <div class="card-body chat-main-body" id="mainChatMessagesContainer" style="height: 350px; overflow-y: auto; display: flex; flex-direction: column;">
+                                    <!-- 聊天消息将由JS填充 -->
+                                    <p class="text-center my-auto text-muted">选择一个联系人开始聊天</p>
+                                </div>
+                                <div class="card-footer">
+                                    <form id="mainMessageForm">
+                                        <div class="input-group">
+                                            <input type="text" id="mainMessageInput" class="form-control" placeholder="输入消息..." disabled>
+                                            <button type="submit" id="mainSendMessageBtn" class="btn btn-primary" disabled><i class="bi bi-send"></i></button>
+                                            <button type="button" id="mainChatTransferBtn" class="btn btn-success ms-2" disabled><i class="bi bi-currency-dollar"></i> 转账</button>
+                                        </div>
+                                    </form>
                 </div>
-                
-                <div id="friendList" class="friend-list">
-                    <p class="loading">加载中...</p>
                 </div>
-                
-                <!-- 聊天界面 -->
-                <div id="chatContainer" class="chat-container">
-                    <h3 id="chatTitle">与 <span id="chatFriendName"></span> 的聊天</h3>
-                    <div id="messageContainer" class="message-container">
-                        <!-- 消息内容会通过JS动态添加 -->
-                    </div>
-                    <div class="message-form">
-                        <textarea id="messageInput" placeholder="请输入消息"></textarea>
-                        <button id="sendMessageBtn" class="btn-enroll">发送</button>
-                        <button id="closeChatBtn" class="btn-drop">关闭</button>
                     </div>
                 </div>
             </section>
             
             <!-- 个人信息 -->
             <section id="profile" class="tab-content">
-                <h2>个人信息</h2>
-                <div class="profile-info">
-                    <div class="info-item">
-                        <label>学号:</label>
-                        <span id="profileStudentId">-</span>
+                    <h2 class="mb-4">个人信息</h2>
+                    <div class="card">
+                        <div class="card-body">
+                            <dl class="row">
+                                <dt class="col-sm-3">学号:</dt><dd class="col-sm-9" id="profileStudentId">-</dd>
+                                <dt class="col-sm-3">姓名:</dt><dd class="col-sm-9" id="profileName">-</dd>
+                                <dt class="col-sm-3">院系:</dt><dd class="col-sm-9" id="profileDeptName">-</dd>
+                                <dt class="col-sm-3">出生日期:</dt><dd class="col-sm-9" id="profileBirthDate">-</dd>
+                                <dt class="col-sm-3">身份证号:</dt><dd class="col-sm-9" id="profileIdCard">-</dd>
+                                <dt class="col-sm-3">地址:</dt><dd class="col-sm-9" id="profileAddress">-</dd>
+                                <dt class="col-sm-3">账户余额:</dt><dd class="col-sm-9" id="profileBalance">-</dd>
+                            </dl>
+                        </div>
                     </div>
-                    <div class="info-item">
-                        <label>姓名:</label>
-                        <span id="profileName">-</span>
-                    </div>
-                    <div class="info-item">
-                        <label>出生日期:</label>
-                        <span id="profileBirthDate">-</span>
-                    </div>
-                    <div class="info-item">
-                        <label>身份证号:</label>
-                        <span id="profileIdCard">-</span>
-                    </div>
-                    <div class="info-item">
-                        <label>地址:</label>
-                        <span id="profileAddress">-</span>
-                    </div>
-                </div>
-            </section>
-        </main>
+                </section>
+            </main>
+        </div>
     </div>
     
+    <!-- 浮动聊天窗口 -->
+    <div id="chatWindow" class="chat-window">
+        <div class="chat-window-header">
+            <strong id="chatWindowFriendName">与...聊天</strong>
+            <div>
+                <button id="chatWindowTransferBtn" class="btn btn-sm btn-light me-1" title="转账"><i class="bi bi-coin"></i></button>
+                <button id="closeChatWindowBtn" class="btn btn-sm btn-light" title="关闭"><i class="bi bi-x-lg"></i></button>
+            </div>
+        </div>
+        <div id="chatWindowMessages" class="chat-window-body">
+            <!-- 聊天消息将通过JS动态添加 -->
+            <p class="text-center my-auto text-muted">加载消息中...</p>
+        </div>
+        <div class="chat-window-footer">
+            <form id="chatWindowMessageForm">
+                <div class="input-group">
+                    <input type="text" id="chatWindowInput" class="form-control" placeholder="输入消息...">
+                    <button id="chatWindowSendBtn" type="submit" class="btn btn-primary"><i class="bi bi-send"></i></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 转账模态框 -->
+    <div class="modal fade" id="transferModal" tabindex="-1" aria-labelledby="transferModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="transferModalLabel">转账给 <span id="transferRecipientName"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                <div class="modal-body">
+                    <form id="transferForm">
+                        <input type="hidden" id="transferRecipientId">
+                        <div class="mb-3">
+                            <label for="transferAmountInput" class="form-label">转账金额 (元)</label>
+                            <input type="number" class="form-control" id="transferAmountInput_modal" min="0.01" step="0.01" required placeholder="0.00">
+                    </div>
+                         <div class="mb-3">
+                            <label for="transferNotes" class="form-label">备注 (可选)</label>
+                            <input type="text" class="form-control" id="transferNotes" placeholder="最多50字">
+                    </div>
+                    </form>
+                    </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" form="transferForm" class="btn btn-primary" id="confirmTransferBtn_modal">确认转账</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 容器 -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+      <!-- Toast 元素将通过JS动态添加 -->
+    </div>
+    
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/api.js"></script>
+    <script src="js/student_dashboard.js"></script> 
+
     <script>
+        // 这个内联脚本区域主要是为了保持旧的 tab 切换逻辑的兼容性，
+        // 但理想情况下，所有主要的JS逻辑都应该在 student_dashboard.js 中。
+        // 许多功能已移至 student_dashboard.js，这里的内联脚本可以逐步移除或重构。
+
         document.addEventListener('DOMContentLoaded', function() {
-            // 检查登录状态
-            checkLogin();
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const userType = localStorage.getItem('userType');
+
+            // 注释掉这部分登录检查，由student_dashboard.js处理
+            /*
+            if (!user.studentId || userType !== 'student') {
+                window.location.href = 'index.html';
+                return;
+            }
+            */
+
+            // 初始化用户名和日期显示 (这些功能部分也在 student_dashboard.js 中，注意避免冲突)
+            // 只有在user有值的情况下才初始化，避免与student_dashboard.js中的API获取逻辑冲突
+            if (user.studentId) {
+                document.getElementById('studentName').textContent = user.name || '学生';
+                document.getElementById('welcomeName').textContent = user.name || '同学';
+                const today = new Date();
+                const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+                document.getElementById('currentDate').textContent = today.toLocaleDateString('zh-CN', options);
+            }
             
-            // 加载学生信息
-            loadStudentInfo();
+            // Tab 切换逻辑 (这是旧的内联逻辑，student_dashboard.js 中有新的基于Bootstrap的tab切换)
+            // 建议统一使用 student_dashboard.js 中的 tab 切换逻辑
+            const sidebarLinks = document.querySelectorAll('.sidebar .nav-link');
+            const tabContents = document.querySelectorAll('.tab-content');
+            const quickActionButtons = document.querySelectorAll('[data-tab-target]');
+
+
+            function showTab(tabId) {
+                tabContents.forEach(content => content.classList.remove('active'));
+                sidebarLinks.forEach(link => link.classList.remove('active'));
+
+                const activeTabContent = document.getElementById(tabId);
+                const activeSidebarLink = document.querySelector(`.sidebar .nav-link[data-tab="${tabId}"]`);
+
+                if (activeTabContent) activeTabContent.classList.add('active');
+                if (activeSidebarLink) activeSidebarLink.classList.add('active');
+
+                // 特定于tab加载的逻辑
+                if (tabId === 'friends') {
+                    // loadFriends(); // 这个现在应该由 student_dashboard.js 处理
+                } else if (tabId === 'payment') {
+                    // loadBalance(); // 这个现在应该由 student_dashboard.js 处理
+                    // loadTransactions(); // 这个现在应该由 student_dashboard.js 处理
+                } else if (tabId === 'messages') {
+                    // loadRecentContacts(); // 这个现在应该由 student_dashboard.js 处理
+                }
+                 // 主页余额加载
+                if (tabId === 'dashboardMain') {
+                    loadMainPageBalance();
+                }
+            }
             
-            // 加载课程数据
-            loadCourses();
-            
-            // 加载我的课程
-            loadMyCourses();
-            
-            // 切换标签页
-            document.querySelectorAll('.sidebar a').forEach(link => {
+            sidebarLinks.forEach(link => {
                 link.addEventListener('click', function(e) {
                     e.preventDefault();
                     const tabId = this.dataset.tab;
-                    
-                    // 移除所有active类
-                    document.querySelectorAll('.sidebar a').forEach(item => {
-                        item.classList.remove('active');
-                    });
-                    document.querySelectorAll('.tab-content').forEach(item => {
-                        item.classList.remove('active');
-                    });
-                    
-                    // 添加active类到当前选中项
-                    this.classList.add('active');
-                    document.getElementById(tabId).classList.add('active');
-                    
-                    // 根据不同标签页执行不同的加载操作
-                    if (tabId === 'payment') {
-                        loadBalance();
-                        loadTransactions();
-                    } else if (tabId === 'friends') {
-                        loadFriends();
-                    }
+                    showTab(tabId);
+                    // 更新 URL hash (可选)
+                    // window.location.hash = tabId;
                 });
             });
             
-            // 退出登录
-            document.getElementById('logoutBtn').addEventListener('click', async function() {
-                try {
-                    await API.student.logout();
-                    window.location.href = 'index.html';
-                } catch (error) {
-                    alert('退出失败: ' + error.message);
-                }
+            quickActionButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const tabId = this.dataset.tabTarget;
+                    showTab(tabId);
+                });
             });
-            
-            // 支付相关事件
-            setupPaymentEvents();
-            
-            // 好友相关事件
-            setupFriendEvents();
-        });
-        
-        // 检查登录状态
-        async function checkLogin() {
-            try {
-                await API.student.getInfo();
-            } catch (error) {
-                // 未登录，重定向到登录页
-                window.location.href = 'index.html';
+
+             // 从 URL hash 初始化 tab (如果存在)
+            // const currentHash = window.location.hash.substring(1);
+            // if (currentHash) {
+            //    showTab(currentHash);
+            // } else {
+            //    showTab('dashboardMain'); // 默认显示主页
+            // }
+            // 默认显示主页，student_dashboard.js 也会做类似处理，注意统一
+             if (!window.location.hash) {
+                showTab('dashboardMain');
             }
-        }
-        
-        // 加载学生信息
-        async function loadStudentInfo() {
-            try {
-                const student = await API.student.getInfo();
-                
-                // 更新顶部栏
-                document.getElementById('studentName').textContent = student.name;
-                
-                // 更新个人信息页
-                document.getElementById('profileStudentId').textContent = student.studentId;
-                document.getElementById('profileName').textContent = student.name;
-                document.getElementById('profileBirthDate').textContent = formatDate(student.birthDate);
-                document.getElementById('profileIdCard').textContent = student.idCard;
-                document.getElementById('profileAddress').textContent = student.address;
-                
-            } catch (error) {
-                console.error('获取学生信息失败:', error);
-            }
-        }
-        
-        // 加载课程列表
-        async function loadCourses() {
-            try {
-                const courses = await API.course.list();
-                const tableBody = document.getElementById('coursesList');
-                
-                // 获取院系列表用于筛选
-                const departments = new Set();
-                courses.forEach(course => {
-                    if (course.deptName) {
-                        departments.add(course.deptName);
-                    }
-                });
-                
-                // 更新院系筛选下拉框
-                const deptFilter = document.getElementById('deptFilter');
-                departments.forEach(dept => {
-                    const option = document.createElement('option');
-                    option.value = dept;
-                    option.textContent = dept;
-                    deptFilter.appendChild(option);
-                });
-                
-                // 渲染课程表格
-                renderCoursesTable(courses, tableBody);
-                
-                // 添加院系筛选事件
-                deptFilter.addEventListener('change', function() {
-                    const selectedDept = this.value;
-                    if (selectedDept) {
-                        const filteredCourses = courses.filter(course => course.deptName === selectedDept);
-                        renderCoursesTable(filteredCourses, tableBody);
-                    } else {
-                        renderCoursesTable(courses, tableBody);
-                    }
-                });
-                
-            } catch (error) {
-                console.error('获取课程列表失败:', error);
-                document.getElementById('coursesList').innerHTML = 
-                    `<tr><td colspan="5" class="error">获取课程列表失败: ${error.message}</td></tr>`;
-            }
-        }
-        
-        // 渲染课程表格
-        function renderCoursesTable(courses, tableBody) {
-            if (courses.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="5">没有可选课程</td></tr>';
-                return;
-            }
-            
-            let html = '';
-            courses.forEach(course => {
-                html += `
-                <tr>
-                    <td>${course.courseId}</td>
-                    <td>${course.courseName}</td>
-                    <td>${course.deptName || '-'}</td>
-                    <td>${course.credit}</td>
-                    <td>
-                        <button class="btn-enroll" data-course-id="${course.courseId}">选课</button>
-                    </td>
-                </tr>`;
-            });
-            
-            tableBody.innerHTML = html;
-            
-            // 添加选课按钮事件
-            tableBody.querySelectorAll('.btn-enroll').forEach(btn => {
-                btn.addEventListener('click', async function() {
-                    const courseId = this.dataset.courseId;
+
+
+            // 退出登录 (这个也在 student_dashboard.js 中，注意统一)
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', async function() {
                     try {
-                        await API.enrollment.add(courseId);
-                        alert('选课成功!');
-                        loadMyCourses(); // 重新加载我的课程
+                        await API.student.logout(); // 假设 API.student.logout 存在
+                        localStorage.removeItem('user');
+                        localStorage.removeItem('userType');
+                        window.location.href = 'index.html';
                     } catch (error) {
-                        alert('选课失败: ' + error.message);
+                        console.error('退出登录失败:', error);
+                        alert('退出失败: ' + error.message);
                     }
                 });
-            });
-        }
-        
-        // 加载我的课程
-        async function loadMyCourses() {
-            try {
-                const enrollments = await API.enrollment.list();
-                const tableBody = document.getElementById('myCoursesList');
-                
-                if (enrollments.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="6">你还没有选择任何课程</td></tr>';
-                    return;
-                }
-                
-                let html = '';
-                enrollments.forEach(enrollment => {
-                    html += `
-                    <tr>
-                        <td>${enrollment.courseId}</td>
-                        <td>${enrollment.courseName || '-'}</td>
-                        <td>${enrollment.deptName || '-'}</td>
-                        <td>${enrollment.credit || '-'}</td>
-                        <td>${enrollment.grade || '暂无'}</td>
-                        <td>
-                            <button class="btn-drop" data-course-id="${enrollment.courseId}">退课</button>
-                        </td>
-                    </tr>`;
-                });
-                
-                tableBody.innerHTML = html;
-                
-                // 添加退课按钮事件
-                tableBody.querySelectorAll('.btn-drop').forEach(btn => {
-                    btn.addEventListener('click', async function() {
-                        if (confirm('确定要退选此课程吗?')) {
-                            const courseId = this.dataset.courseId;
-                            try {
-                                await API.enrollment.drop(courseId);
-                                alert('退课成功!');
-                                loadMyCourses(); // 重新加载我的课程
-                            } catch (error) {
-                                alert('退课失败: ' + error.message);
-                            }
-                        }
-                    });
-                });
-                
-            } catch (error) {
-                console.error('获取已选课程失败:', error);
-                document.getElementById('myCoursesList').innerHTML = 
-                    `<tr><td colspan="6" class="error">获取已选课程失败: ${error.message}</td></tr>`;
             }
-        }
-        
-        // 支付相关事件设置
-        function setupPaymentEvents() {
-            // 充值按钮
-            document.getElementById('depositBtn').addEventListener('click', function() {
-                document.getElementById('depositForm').style.display = 'block';
-                document.getElementById('withdrawForm').style.display = 'none';
-            });
-            
-            // 提现按钮
-            document.getElementById('withdrawBtn').addEventListener('click', function() {
-                document.getElementById('withdrawForm').style.display = 'block';
-                document.getElementById('depositForm').style.display = 'none';
-            });
-            
-            // 取消充值
-            document.getElementById('cancelDepositBtn').addEventListener('click', function() {
-                document.getElementById('depositForm').style.display = 'none';
-                document.getElementById('depositAmount').value = '';
-            });
-            
-            // 取消提现
-            document.getElementById('cancelWithdrawBtn').addEventListener('click', function() {
-                document.getElementById('withdrawForm').style.display = 'none';
-                document.getElementById('withdrawAmount').value = '';
-            });
-            
-            // 确认充值
-            document.getElementById('confirmDepositBtn').addEventListener('click', async function() {
-                const amount = document.getElementById('depositAmount').value;
-                if (!amount || amount <= 0) {
-                    alert('请输入有效金额');
-                    return;
-                }
-                
-                try {
-                    await API.payment.deposit(amount);
-                    alert('充值成功');
-                    document.getElementById('depositForm').style.display = 'none';
-                    document.getElementById('depositAmount').value = '';
-                    
-                    // 刷新余额和交易记录
-                    loadBalance();
-                    loadTransactions();
-                } catch (error) {
-                    alert('充值失败: ' + error.message);
-                }
-            });
-            
-            // 确认提现
-            document.getElementById('confirmWithdrawBtn').addEventListener('click', async function() {
-                const amount = document.getElementById('withdrawAmount').value;
-                if (!amount || amount <= 0) {
-                    alert('请输入有效金额');
-                    return;
-                }
-                
-                try {
-                    await API.payment.withdraw(amount);
-                    alert('提现成功');
-                    document.getElementById('withdrawForm').style.display = 'none';
-                    document.getElementById('withdrawAmount').value = '';
-                    
-                    // 刷新余额和交易记录
-                    loadBalance();
-                    loadTransactions();
-                } catch (error) {
-                    alert('提现失败: ' + error.message);
-                }
-            });
-        }
-        
-        // 加载余额
-        async function loadBalance() {
-            try {
-                const student = await API.student.getInfo();
-                document.getElementById('balanceAmount').textContent = `¥ ${student.balance.toFixed(2)}`;
-            } catch (error) {
-                console.error('获取余额失败:', error);
-                document.getElementById('balanceAmount').textContent = '获取失败';
-            }
-        }
-        
-        // 加载交易记录
-        async function loadTransactions() {
-            try {
-                const transactions = await API.transaction.list();
-                const transactionList = document.getElementById('transactionList');
-                
-                if (!transactions || transactions.length === 0) {
-                    transactionList.innerHTML = '<p>暂无交易记录</p>';
-                    return;
-                }
-                
-                let html = '';
-                transactions.forEach(transaction => {
-                    const isPositive = transaction.type === 'DEPOSIT' || transaction.type === 'REFUND';
-                    const amountClass = isPositive ? 'deposit' : 'withdraw';
-                    const amountText = isPositive ? `+${transaction.amount}` : transaction.amount;
-                    const date = new Date(transaction.transactionDate);
-                    
-                    let typeText = '';
-                    switch(transaction.type) {
-                        case 'DEPOSIT': typeText = '充值'; break;
-                        case 'WITHDRAW': typeText = '提现'; break;
-                        case 'PAYMENT': typeText = '支付'; break;
-                        case 'REFUND': typeText = '退款'; break;
-                        case 'TRANSFER': typeText = '转账'; break;
-                        case 'EXPENSE': typeText = '支出'; break;
-                        default: typeText = transaction.type;
-                    }
-                    
-                    html += `
-                    <div class="transaction-item">
-                        <div>
-                            <span class="transaction-type">${typeText}</span>
-                            <span class="amount ${amountClass}">${amountText}</span>
-                        </div>
-                        <div class="transaction-description">${transaction.description || '无描述'}</div>
-                        <div class="transaction-date">${date.toLocaleString()}</div>
-                    </div>`;
-                });
-                
-                transactionList.innerHTML = html;
-            } catch (error) {
-                console.error('获取交易记录失败:', error);
-                document.getElementById('transactionList').innerHTML = 
-                    `<p class="error">获取交易记录失败: ${error.message}</p>`;
-            }
-        }
-        
-        // 好友相关事件设置
-        function setupFriendEvents() {
-            // 添加好友
-            document.getElementById('addFriendBtn').addEventListener('click', async function() {
-                const friendId = document.getElementById('friendIdInput').value.trim();
-                if (!friendId) {
-                    alert('请输入好友学号');
-                    return;
-                }
-                
-                try {
-                    await API.friendship.add(friendId);
-                    alert('添加好友成功');
-                    document.getElementById('friendIdInput').value = '';
-                    
-                    // 刷新好友列表
-                    loadFriends();
-                } catch (error) {
-                    alert('添加好友失败: ' + error.message);
-                }
-            });
-            
-            // 发送消息
-            document.getElementById('sendMessageBtn').addEventListener('click', async function() {
-                const messageContent = document.getElementById('messageInput').value.trim();
-                const receiverId = document.getElementById('chatContainer').dataset.friendId;
-                
-                if (!messageContent) {
-                    alert('请输入消息内容');
-                    return;
-                }
-                
-                try {
-                    await API.message.send(receiverId, messageContent);
-                    document.getElementById('messageInput').value = '';
-                    
-                    // 刷新聊天记录
-                    loadChatMessages(receiverId);
-                } catch (error) {
-                    alert('发送消息失败: ' + error.message);
-                }
-            });
-            
-            // 关闭聊天
-            document.getElementById('closeChatBtn').addEventListener('click', function() {
-                document.getElementById('chatContainer').style.display = 'none';
-            });
-        }
-        
-        // 加载好友列表
-        async function loadFriends() {
-            try {
-                const friends = await API.friendship.list();
-                const friendList = document.getElementById('friendList');
-                
-                if (!friends || friends.length === 0) {
-                    friendList.innerHTML = '<p>您还没有好友，使用上方搜索栏添加好友吧</p>';
-                    return;
-                }
-                
-                let html = '';
-                friends.forEach(friend => {
-                    const avatar = friend.name ? friend.name.charAt(0).toUpperCase() : '?';
-                    
-                    html += `
-                    <div class="friend-item">
-                        <div class="friend-info">
-                            <div class="friend-avatar">${avatar}</div>
-                            <div>
-                                <div>${friend.name}</div>
-                                <div>${friend.studentId}</div>
+
+            // 确保 student_dashboard.js 中的 DOMContentLoaded 监听器在其脚本加载后执行
+            // 大部分初始化逻辑应该在 student_dashboard.js 中完成。
+            // 此处的内联脚本主要是为了向后兼容或处理特定于此 HTML 的简单交互。
+
+            // 全局 Toast 函数 (student_dashboard.js 中也有，这里提供一个简版以防万一)
+            function showToast(message, type = 'info') {
+                const toastContainer = document.querySelector('.toast-container');
+                if (!toastContainer) return;
+
+                const toastId = 'toast-' + Date.now();
+                const toastHTML = `
+                    <div id="${toastId}" class="toast align-items-center text-white bg-${type === 'danger' ? 'danger' : (type === 'success' ? 'success' : 'primary')}" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="d-flex">
+                            <div class="toast-body">
+                                ${message}
                             </div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
                         </div>
-                        <div class="friend-actions">
-                            <button class="btn-message" data-friend-id="${friend.studentId}" data-friend-name="${friend.name}">发送消息</button>
-                            <button class="btn-delete-friend" data-friend-id="${friend.studentId}">删除好友</button>
-                        </div>
-                    </div>`;
-                });
+                    </div>
+                `;
+                toastContainer.insertAdjacentHTML('beforeend', toastHTML);
                 
-                friendList.innerHTML = html;
-                
-                // 添加发送消息事件
-                friendList.querySelectorAll('.btn-message').forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const friendId = this.dataset.friendId;
-                        const friendName = this.dataset.friendName;
-                        openChatWithFriend(friendId, friendName);
-                    });
-                });
-                
-                // 添加删除好友事件
-                friendList.querySelectorAll('.btn-delete-friend').forEach(btn => {
-                    btn.addEventListener('click', async function() {
-                        if (confirm('确定要删除此好友吗?')) {
-                            const friendId = this.dataset.friendId;
-                            try {
-                                await API.friendship.delete(friendId);
-                                alert('删除好友成功');
-                                loadFriends();
-                            } catch (error) {
-                                alert('删除好友失败: ' + error.message);
-                            }
-                        }
-                    });
-                });
-            } catch (error) {
-                console.error('获取好友列表失败:', error);
-                document.getElementById('friendList').innerHTML = 
-                    `<p class="error">获取好友列表失败: ${error.message}</p>`;
+                const toastElement = document.getElementById(toastId);
+                const toast = new bootstrap.Toast(toastElement, { delay: 3000 });
+                toast.show();
+                toastElement.addEventListener('hidden.bs.toast', () => toastElement.remove());
             }
-        }
-        
-        // 打开与好友的聊天
-        async function openChatWithFriend(friendId, friendName) {
-            const chatContainer = document.getElementById('chatContainer');
-            const chatFriendName = document.getElementById('chatFriendName');
-            
-            chatContainer.style.display = 'block';
-            chatContainer.dataset.friendId = friendId;
-            chatFriendName.textContent = friendName;
-            
-            // 加载聊天记录
-            loadChatMessages(friendId);
-        }
-        
-        // 加载聊天记录
-        async function loadChatMessages(friendId) {
-            try {
-                const messages = await API.message.getConversation(friendId);
-                const messageContainer = document.getElementById('messageContainer');
-                
-                if (!messages || messages.length === 0) {
-                    messageContainer.innerHTML = '<p class="text-center">暂无聊天记录</p>';
-                    return;
+            window.showToast = showToast; // 使其全局可用，以便 student_dashboard.js 可以统一使用
+
+            // 加载主页余额信息
+            async function loadMainPageBalance() {
+                try {
+                    const studentInfo = await API.student.getInfo();
+                    const balanceDisplay = document.getElementById('mainBalanceAmount');
+                     if (balanceDisplay) {
+                        balanceDisplay.textContent = `¥ ${parseFloat(studentInfo.balance || 0).toFixed(2)}`;
+                    }
+                } catch (error) {
+                    console.error('获取主页余额信息失败:', error);
+                     const balanceDisplay = document.getElementById('mainBalanceAmount');
+                    if (balanceDisplay) {
+                        balanceDisplay.textContent = '获取失败';
+                    }
                 }
-                
-                let html = '';
-                messages.forEach(message => {
-                    const isFromMe = message.fromStudentId === document.getElementById('profileStudentId').textContent;
-                    const messageClass = isFromMe ? 'message-sent' : 'message-received';
-                    const date = new Date(message.sendTime);
-                    
-                    html += `
-                    <div class="message ${messageClass}">
-                        <div>${message.content}</div>
-                        <div class="message-time" style="font-size: 12px; opacity: 0.7; text-align: right;">
-                            ${date.toLocaleString()}
-                        </div>
-                    </div>`;
-                });
-                
-                messageContainer.innerHTML = html;
-                
-                // 滚动到底部
-                messageContainer.scrollTop = messageContainer.scrollHeight;
-            } catch (error) {
-                console.error('获取聊天记录失败:', error);
-                document.getElementById('messageContainer').innerHTML = 
-                    `<p class="error">获取聊天记录失败: ${error.message}</p>`;
             }
-        }
-        
-        // 日期格式化
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            const date = new Date(dateStr);
-            return date.toLocaleDateString();
-        }
+            // 如果初始tab是主页，则加载余额
+            if (document.getElementById('dashboardMain').classList.contains('active')) {
+                 loadMainPageBalance();
+            }
+
+
+            // 旧的 setupFriendEvents 逻辑所在地，现在应该大部分移到 student_dashboard.js 的 loadFriends 或相关函数中
+            // function setupFriendEvents() {
+            //    console.log("Running setupFriendEvents from HTML inline script - this might be outdated.");
+            //    const addFriendForm = document.getElementById('addFriendForm');
+            //    if (addFriendForm) { /* ... */ }
+            // }
+            // setupFriendEvents(); // 这个调用可能导致错误，因为它可能在 student_dashboard.js 绑定事件之前或之后运行，
+                               // 或者引用的元素ID在 student_dashboard.js 中已被处理。
+                               // 建议完全依赖 student_dashboard.js 中的事件绑定。
+        });
     </script>
 </body>
 </html> 

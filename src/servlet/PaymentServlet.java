@@ -4,8 +4,10 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dao.StudentDAO;
 import dao.TransactionDAO;
+import dao.TransactionControlDao;
 import model.Student;
 import model.Transaction;
+import model.TransactionControl;
 import util.ResponseUtil;
 
 import javax.servlet.ServletException;
@@ -29,6 +31,7 @@ public class PaymentServlet extends HttpServlet {
     private static final Logger logger = Logger.getLogger(PaymentServlet.class.getName());
     private StudentDAO studentDAO = new StudentDAO();
     private TransactionDAO transactionDAO = new TransactionDAO();
+    private TransactionControlDao tcDao = new TransactionControlDao();
     private Gson gson = new Gson();
 
     @Override
@@ -84,6 +87,26 @@ public class PaymentServlet extends HttpServlet {
                     break;
                 case "/withdraw":
                     handleWithdraw(studentId, amount, response, request);
+                    break;
+                case "/transfer":
+                    // 获取转账目标学生ID和备注
+                    if (!jsonData.has("toStudentId") || jsonData.get("toStudentId").isJsonNull()) {
+                        ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "接收方学号不能为空");
+                        return;
+                    }
+                    String toStudentId = jsonData.get("toStudentId").getAsString();
+                    String description = jsonData.has("description") ? jsonData.get("description").getAsString() : "好友转账";
+                    handleTransfer(studentId, toStudentId, amount, description, response, request);
+                    break;
+                case "/pay":
+                    // 获取课程ID和备注
+                    if (!jsonData.has("courseId") || jsonData.get("courseId").isJsonNull()) {
+                        ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "课程ID不能为空");
+                        return;
+                    }
+                    String courseId = jsonData.get("courseId").getAsString();
+                    String paymentDesc = jsonData.has("description") ? jsonData.get("description").getAsString() : "课程付费";
+                    handlePayment(studentId, courseId, amount, paymentDesc, response, request);
                     break;
                 default:
                     ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "不支持的操作: " + pathInfo);
@@ -167,6 +190,162 @@ public class PaymentServlet extends HttpServlet {
             ResponseUtil.sendSuccessResponse(response, "提现成功，已从账户扣除 " + amount + " 元");
         } else {
             ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "提现失败");
+        }
+    }
+
+    /**
+     * 处理转账操作
+     */
+    private void handleTransfer(String fromStudentId, String toStudentId, BigDecimal amount, String description, 
+                               HttpServletResponse response, HttpServletRequest request) throws IOException, SQLException {
+        // 获取学生信息
+        Student fromStudent = studentDAO.findById(fromStudentId);
+        Student toStudent = studentDAO.findById(toStudentId);
+        
+        if (fromStudent == null) {
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "未找到转出方学生信息");
+            return;
+        }
+        
+        if (toStudent == null) {
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "未找到接收方学生信息");
+            return;
+        }
+        
+        if (fromStudentId.equals(toStudentId)) {
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "不能给自己转账");
+            return;
+        }
+
+        // 检查余额是否足够
+        if (fromStudent.getBalance() < amount.doubleValue()) {
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "余额不足，当前余额: " + fromStudent.getBalance());
+            return;
+        }
+        
+        // 转账预警检查 - 检查单笔限额
+        // 获取当前交易控制设置
+        try {
+            TransactionControl control = tcDao.getCurrentControl();
+            
+            if (control != null && control.isEnabled()) {
+                // 检查单笔限额
+                if (control.isExceedSingleLimit(amount)) {
+                    ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, 
+                            "转账金额超过单笔限额 " + control.getMaxSingleAmount() + "元");
+                    return;
+                }
+                
+                // 检查日累计限额
+                java.util.Date today = new java.util.Date();
+                TransactionDAO txDao = new TransactionDAO();
+                BigDecimal dailySum = txDao.getDailyTransferSum(fromStudentId, today);
+                
+                if (dailySum != null && control.isExceedDailyLimit(dailySum, amount)) {
+                    ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, 
+                            "转账金额超过日累计限额，当前已累计: " + dailySum + "元，限额: " + control.getDailyLimit() + "元");
+                    return;
+                }
+                
+                // 检查日交易次数
+                int dailyCount = txDao.getDailyTransferCount(fromStudentId, today);
+                if (control.isExceedDailyCount(dailyCount)) {
+                    ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, 
+                            "超过今日最大交易次数限制 " + control.getMaxDailyTransactions() + "次");
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "转账限额检查失败", e);
+            // 继续处理，不因检查失败而阻止转账
+        }
+
+        // 更新转出方余额（扣减）
+        double fromNewBalance = fromStudent.getBalance() - amount.doubleValue();
+        boolean fromSuccess = studentDAO.updateBalance(fromStudentId, fromNewBalance);
+        
+        if (!fromSuccess) {
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "转出方扣款失败");
+            return;
+        }
+        
+        // 更新接收方余额（增加）
+        double toNewBalance = toStudent.getBalance() + amount.doubleValue();
+        boolean toSuccess = studentDAO.updateBalance(toStudentId, toNewBalance);
+        
+        if (!toSuccess) {
+            // 如果接收方加款失败，回滚转出方的扣款
+            studentDAO.updateBalance(fromStudentId, fromStudent.getBalance());
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "接收方加款失败，已回滚转出方扣款");
+            return;
+        }
+        
+        // 记录转出交易
+        Transaction outTransaction = new Transaction();
+        outTransaction.setStudentId(fromStudentId);
+        outTransaction.setAmount(amount.negate()); // 负数表示转出
+        outTransaction.setType(Transaction.TransactionType.TRANSFER);
+        outTransaction.setDescription("转账给 " + toStudent.getName() + "(" + toStudentId + ")" + (description != null ? ": " + description : ""));
+        
+        transactionDAO.add(outTransaction);
+        
+        // 记录转入交易
+        Transaction inTransaction = new Transaction();
+        inTransaction.setStudentId(toStudentId);
+        inTransaction.setAmount(amount); // 正数表示转入
+        inTransaction.setType(Transaction.TransactionType.TRANSFER);
+        inTransaction.setDescription("收到来自 " + fromStudent.getName() + "(" + fromStudentId + ") 的转账" + (description != null ? ": " + description : ""));
+        
+        transactionDAO.add(inTransaction);
+        
+        // 更新session中的学生对象
+        fromStudent.setBalance(fromNewBalance);
+        request.getSession().setAttribute("student", fromStudent);
+        
+        // 返回成功信息
+        ResponseUtil.sendSuccessResponse(response, "转账成功，已向 " + toStudent.getName() + " 转账 " + amount + " 元");
+    }
+
+    /**
+     * 处理课程支付操作
+     */
+    private void handlePayment(String studentId, String courseId, BigDecimal amount, String description, 
+                             HttpServletResponse response, HttpServletRequest request) throws IOException, SQLException {
+        // 获取学生信息
+        Student student = studentDAO.findById(studentId);
+        if (student == null) {
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "未找到学生信息");
+            return;
+        }
+
+        // 检查余额是否足够
+        if (student.getBalance() < amount.doubleValue()) {
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "余额不足，当前余额: " + student.getBalance());
+            return;
+        }
+        
+        // 更新余额
+        double newBalance = student.getBalance() - amount.doubleValue();
+        boolean success = studentDAO.updateBalance(studentId, newBalance);
+        
+        if (success) {
+            // 记录交易
+            Transaction transaction = new Transaction();
+            transaction.setStudentId(studentId);
+            transaction.setAmount(amount.negate()); // 负数表示支出
+            transaction.setType(Transaction.TransactionType.EXPENSE);
+            transaction.setDescription("支付课程 " + courseId + ": " + description);
+            
+            transactionDAO.add(transaction);
+            
+            // 更新session中的学生对象
+            student.setBalance(newBalance);
+            request.getSession().setAttribute("student", student);
+            
+            // 返回成功信息
+            ResponseUtil.sendSuccessResponse(response, "支付成功，已支付 " + amount + " 元");
+        } else {
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "支付失败");
         }
     }
 } 

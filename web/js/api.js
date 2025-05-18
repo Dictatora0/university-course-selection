@@ -1,5 +1,7 @@
 // API 客户端工具
 const API = {
+    baseUrl: '/course-selection/api',
+    
     // 通用请求方法
     async request(endpoint, method = 'GET', data = null) {
         // 添加上下文路径
@@ -58,113 +60,408 @@ const API = {
     
     // 学生API
     student: {
-        login(studentId, password) {
-            return API.request('/api/student/login', 'POST', { studentId, password });
-        },
-        register(studentId, name, password) {
-            // 确保所有字段都不为空
-            if (!studentId || !name || !password) {
-                return Promise.reject(new Error('学号、姓名和密码不能为空'));
-            }
-            
-            return API.request('/api/student/register', 'POST', { 
-                studentId, 
-                name, 
-                password,
-                birthDate: null,
-                idCard: null,
-                address: null
+        login: async function(studentId, password) {
+            const response = await fetch(`${API.baseUrl}/students/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    student_id: studentId,
+                    password: password
+                }),
+                credentials: 'include'
             });
+            
+            return API.handleResponse(response);
         },
-        getInfo() {
-            return API.request('/api/student/getInfo');
+        
+        register: async function(studentData) {
+            const response = await fetch(`${API.baseUrl}/students/register`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(studentData),
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         },
-        logout() {
-            return API.request('/api/student/logout');
+        
+        logout: async function() {
+            const response = await fetch(`${API.baseUrl}/students/logout`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
+        },
+        
+        getInfo: async function() {
+            const response = await fetch(`${API.baseUrl}/students/getInfo`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         }
     },
     
     // 课程API
     course: {
-        list() {
-            return API.request('/api/course/list');
+        list: async function() {
+            const response = await fetch(`${API.baseUrl}/course/list`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         },
-        getByDept(deptId) {
-            return API.request(`/api/course/getByDept?deptId=${deptId}`);
+        
+        getByDept: async function(deptId) {
+            const response = await fetch(`${API.baseUrl}/course/getByDept?deptId=${deptId}`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         }
     },
     
     // 选课API
     enrollment: {
-        list() {
-            return API.request('/api/enrollment/list');
+        list: async function() {
+            const response = await fetch(`${API.baseUrl}/enrollment/list`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         },
-        add(courseId) {
-            return API.request('/api/enrollment/add', 'POST', { courseId });
+        
+        add: async function(courseId) {
+            const response = await fetch(`${API.baseUrl}/enrollment/add`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    courseId: courseId
+                }),
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         },
-        drop(courseId) {
-            return API.request(`/api/enrollment/drop?courseId=${courseId}`);
+        
+        drop: async function(courseId) {
+            const response = await fetch(`${API.baseUrl}/enrollment/drop?courseId=${courseId}`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         }
     },
     
     // 支付API
     payment: {
-        deposit(amount) {
-            return API.request('/api/payment/deposit', 'POST', { amount });
+        deposit: async function(amount) {
+            const response = await fetch(`${API.baseUrl}/payment/deposit`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ amount }),
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         },
-        withdraw(amount) {
-            return API.request('/api/payment/withdraw', 'POST', { amount });
+        withdraw: async function(amount) {
+            const response = await fetch(`${API.baseUrl}/payment/withdraw`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ amount }),
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
+        },
+        transfer: async function(toStudentId, amount, description = '') {
+            const response = await fetch(`${API.baseUrl}/payment/transfer`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    toStudentId: toStudentId,
+                    amount: amount,
+                    description: description
+                }),
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         }
     },
     
     // 交易API
     transaction: {
-        list() {
-            return API.request('/api/transactions/list');
+        list: async function() {
+            const response = await fetch(`${API.baseUrl}/transactions/list`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         },
-        create(type, amount, description = '') {
-            return API.request('/api/transactions/create', 'POST', { type, amount, description });
+        create: async function(type, amount, description = '') {
+            const response = await fetch(`${API.baseUrl}/transactions/create`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ type, amount, description }),
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         }
     },
     
     // 好友API
     friendship: {
-        list() {
-            return API.request('/api/friendship/list');
+        list: async function() {
+            const response = await fetch(`${API.baseUrl}/friendship`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         },
-        add(friendId) {
-            return API.request('/api/friendship/add', 'POST', { friendId });
+        
+        add: async function(friendId) {
+            const response = await fetch(`${API.baseUrl}/friendship/add`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    friendId: friendId
+                }),
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         },
-        delete(friendId) {
-            return API.request(`/api/friendship/delete/${friendId}`, 'DELETE');
+        
+        delete: async function(friendId) {
+            const response = await fetch(`${API.baseUrl}/friendship/${friendId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         },
-        check(friendId) {
-            return API.request(`/api/friendship/check/${friendId}`);
+        
+        check: async function(friendId) {
+            const response = await fetch(`${API.baseUrl}/friendship/check/${friendId}`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         },
-        count() {
-            return API.request('/api/friendship/count');
+        
+        count: async function() {
+            const response = await fetch(`${API.baseUrl}/friendship/count`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
+        },
+        
+        requests: async function() {
+            const response = await fetch(`${API.baseUrl}/friendship/requests`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
+        },
+        
+        search: async function(keyword) {
+            const response = await fetch(`${API.baseUrl}/friendship/search?keyword=${encodeURIComponent(keyword)}`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
+        },
+        
+        accept: async function(requesterId) {
+            const response = await fetch(`${API.baseUrl}/friendship/accept/${requesterId}`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
+        },
+        
+        reject: async function(requesterId) {
+            const response = await fetch(`${API.baseUrl}/friendship/reject/${requesterId}`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
+        },
+        
+        received: async function() {
+            const response = await fetch(`${API.baseUrl}/friendship/received`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
+        },
+        
+        recommendations: async function(type = 'all', limit = 10) {
+            let url = `${API.baseUrl}/friendship/recommendations`;
+            if (type !== 'all') {
+                url += `?type=${type}&limit=${limit}`;
+            }
+            
+            const response = await fetch(url, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         }
     },
     
     // 消息API
     message: {
-        send(receiverId, content) {
-            return API.request('/api/messages/send', 'POST', { receiverId, content });
+        // 获取与特定用户的聊天记录
+        getConversation: async (friendId) => {
+            console.log(`获取与 ${friendId} 的聊天记录`);
+            if (!friendId) {
+                console.error('获取聊天记录失败: friendId未定义');
+                throw new Error('好友ID不能为空');
+            }
+            
+            try {
+                const response = await fetch(`${API.baseUrl}/message/conversation/${friendId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.text();
+                    console.error('API错误:', errorData);
+                    throw new Error(errorData || '获取聊天记录失败');
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('获取聊天记录失败:', error);
+                throw error;
+            }
         },
-        unread() {
-            return API.request('/api/messages/unread');
+        
+        // 发送消息
+        send: async (toId, content) => {
+            console.log(`发送消息给 ${toId}: ${content}`);
+            if (!toId) {
+                console.error('发送消息失败: toId未定义');
+                throw new Error('接收者ID不能为空');
+            }
+            
+            if (!content || content.trim() === '') {
+                console.error('发送消息失败: 内容为空');
+                throw new Error('消息内容不能为空');
+            }
+            
+            try {
+                const response = await fetch(`${API.baseUrl}/message/send`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        toStudentId: toId,
+                        content: content
+                    }),
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.text();
+                    console.error('API错误:', errorData);
+                    throw new Error(errorData || '发送消息失败');
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('发送消息失败:', error);
+                throw error;
+            }
         },
-        unreadCount() {
-            return API.request('/api/messages/unread_count');
+        
+        unread: async function() {
+            const response = await fetch(`${API.baseUrl}/messages/unread`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         },
-        getConversation(friendId) {
-            return API.request(`/api/messages/conversation/${friendId}`);
+        
+        unreadCount: async function() {
+            const response = await fetch(`${API.baseUrl}/messages/unread_count`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         },
-        markAsRead(messageId) {
-            return API.request(`/api/messages/read/${messageId}`, 'PUT');
+        
+        markAsRead: async function(messageId) {
+            const response = await fetch(`${API.baseUrl}/messages/read/${messageId}`, {
+                method: 'PUT',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         },
-        delete(messageId) {
-            return API.request(`/api/messages/delete/${messageId}`, 'DELETE');
+        
+        delete: async function(messageId) {
+            const response = await fetch(`${API.baseUrl}/messages/delete/${messageId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            return API.handleResponse(response);
         }
+    },
+    
+    // 帮助函数 - 处理API响应
+    handleResponse: async function(response) {
+        const responseData = await response.json();
+        
+        if (!response.ok || (responseData && !responseData.success)) {
+            throw new Error(responseData.message || '请求失败');
+        }
+        
+        return responseData.data;
     }
 }; 

@@ -6,7 +6,10 @@ import dao.AdministratorDao;
 import dao.StudentDAO;
 import dao.CourseDAO;
 import dao.EnrollmentDAO;
+import dao.TransactionDAO;
+import dao.LoginLogDao;
 import model.Administrator;
+import model.Transaction;
 import util.ResponseUtil;
 
 import javax.servlet.ServletException;
@@ -30,6 +33,11 @@ public class AdminServlet extends HttpServlet {
     private static final Logger LOGGER = Logger.getLogger(AdminServlet.class.getName());
     private static final Gson GSON = new Gson();
     private final AdministratorDao administratorDao = new AdministratorDao();
+    private final StudentDAO studentDAO = new StudentDAO();
+    private final CourseDAO courseDAO = new CourseDAO();
+    private final EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
+    private final TransactionDAO transactionDAO = new TransactionDAO();
+    private final LoginLogDao loginLogDao = new LoginLogDao();
 
     /**
      * 处理GET请求
@@ -38,329 +46,60 @@ public class AdminServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String pathInfo = req.getPathInfo();
         
+        HttpSession session = req.getSession(false);
+        if (!isUserAdmin(session) && !isLoginPath(pathInfo)) {
+             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
+             return;
+        }
+        Administrator currentAdmin = isAdminSessionValid(session) ? (Administrator) session.getAttribute("admin") : null;
+
         if (pathInfo == null || pathInfo.equals("/")) {
-            // 获取当前登录的管理员信息
             handleGetCurrentAdmin(req, resp);
         } else if (pathInfo.equals("/logout")) {
-            // 管理员退出登录
             handleLogout(req, resp);
         } else if (pathInfo.equals("/all")) {
-            // 获取所有管理员列表（仅超级管理员可访问）
             handleGetAllAdmins(req, resp);
-        } else if (pathInfo.equals("/stats/overview")) {
-            // 获取系统概览统计数据
+        } else if (pathInfo.startsWith("/stats")) {
+            handleStatsRequests(req, resp, pathInfo, currentAdmin);
+        } else {
+            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+        }
+    }
+
+    private boolean isUserAdmin(HttpSession session) {
+        return session != null && session.getAttribute("admin") != null && "admin".equals(session.getAttribute("userType"));
+    }
+    
+    private boolean isAdminSessionValid(HttpSession session) {
+        return session != null && session.getAttribute("admin") != null;
+    }
+
+    private boolean isLoginPath(String pathInfo) {
+        return pathInfo != null && pathInfo.equals("/login");
+    }
+
+    private void handleStatsRequests(HttpServletRequest req, HttpServletResponse resp, String pathInfo, Administrator admin) throws IOException {
+        if (admin == null) {
+             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "统计功能需要管理员登录");
+             return;
+        }
+
+        if (pathInfo.equals("/stats/overview")) {
             handleGetSystemOverview(req, resp);
+        } else if (pathInfo.equals("/stats") || pathInfo.equals("/stats/")) {
+            handleGetAllStatsCombined(req, resp, admin);
         } else if (pathInfo.equals("/stats/students")) {
-            // 获取学生统计数据
             handleGetStudentStats(req, resp);
         } else if (pathInfo.equals("/stats/courses")) {
-            // 获取课程统计数据
             handleGetCourseStats(req, resp);
         } else if (pathInfo.equals("/stats/enrollments")) {
-            // 获取选课统计数据
             handleGetEnrollmentStats(req, resp);
+        } else if (pathInfo.equals("/stats/active-users")) {
+            handleGetActiveUsersCombined(req, resp, admin);
+        } else if (pathInfo.equals("/stats/transactions/recent")) {
+            handleGetRecentTransactionsCombined(req, resp, admin);
         } else {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
-        }
-    }
-
-    /**
-     * 处理POST请求
-     */
-    @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        String pathInfo = req.getPathInfo();
-        
-        if (pathInfo == null || pathInfo.equals("/")) {
-            // 创建新管理员（仅超级管理员可操作）
-            handleCreateAdmin(req, resp);
-        } else if (pathInfo.equals("/login")) {
-            // 管理员登录
-            handleLogin(req, resp);
-        } else {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
-        }
-    }
-
-    /**
-     * 处理PUT请求
-     */
-    @Override
-    protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        String pathInfo = req.getPathInfo();
-        
-        if (pathInfo != null && pathInfo.startsWith("/")) {
-            String adminId = pathInfo.substring(1);
-            // 更新管理员信息（仅超级管理员可操作）
-            handleUpdateAdmin(req, resp, adminId);
-        } else {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
-        }
-    }
-
-    /**
-     * 处理DELETE请求
-     */
-    @Override
-    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        String pathInfo = req.getPathInfo();
-        
-        if (pathInfo != null && pathInfo.startsWith("/")) {
-            String adminId = pathInfo.substring(1);
-            // 删除管理员（仅超级管理员可操作）
-            handleDeleteAdmin(req, resp, adminId);
-        } else {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
-        }
-    }
-
-    /**
-     * 处理管理员登录
-     */
-    private void handleLogin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        try {
-            JsonObject requestBody = GSON.fromJson(req.getReader(), JsonObject.class);
-            String adminId = requestBody.get("adminId").getAsString();
-            String password = requestBody.get("password").getAsString();
-
-            Administrator admin = administratorDao.login(adminId, password);
-
-            if (admin != null) {
-                // 登录成功，将管理员信息存入Session
-                HttpSession session = req.getSession();
-                session.setAttribute("admin", admin);
-                session.setAttribute("userType", "admin");
-
-                // 移除密码字段，避免返回给前端
-                admin.setPassword(null);
-
-                ResponseUtil.sendSuccessResponse(resp, "登录成功", admin);
-            } else {
-                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "管理员ID或密码错误");
-            }
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "管理员登录失败", e);
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "登录失败：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 处理获取当前登录的管理员信息
-     */
-    private void handleGetCurrentAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        HttpSession session = req.getSession(false);
-        
-        if (session != null && session.getAttribute("admin") != null) {
-            Administrator admin = (Administrator) session.getAttribute("admin");
-            
-            // 复制一份，移除密码等敏感信息
-            Administrator safeAdmin = new Administrator();
-            safeAdmin.setAdminId(admin.getAdminId());
-            safeAdmin.setName(admin.getName());
-            safeAdmin.setRole(admin.getRole());
-            safeAdmin.setCreatedAt(admin.getCreatedAt());
-            safeAdmin.setLastLogin(admin.getLastLogin());
-            
-            ResponseUtil.sendSuccessResponse(resp, "成功获取管理员信息", safeAdmin);
-        } else {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
-        }
-    }
-
-    /**
-     * 处理管理员退出登录
-     */
-    private void handleLogout(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        HttpSession session = req.getSession(false);
-        
-        if (session != null) {
-            session.invalidate();
-        }
-        
-        ResponseUtil.sendSuccessResponse(resp, "退出登录成功", null);
-    }
-
-    /**
-     * 处理获取所有管理员列表（仅超级管理员可访问）
-     */
-    private void handleGetAllAdmins(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        // 检查是否是超级管理员
-        HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("admin") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
-            return;
-        }
-        
-        Administrator currentAdmin = (Administrator) session.getAttribute("admin");
-        if (!currentAdmin.isSuperAdmin()) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "权限不足，仅超级管理员可执行此操作");
-            return;
-        }
-        
-        List<Administrator> admins = administratorDao.getAllAdministrators();
-        
-        // 移除所有管理员的密码字段
-        for (Administrator admin : admins) {
-            admin.setPassword(null);
-        }
-        
-        ResponseUtil.sendSuccessResponse(resp, "成功获取所有管理员列表", admins);
-    }
-
-    /**
-     * 处理创建新管理员（仅超级管理员可操作）
-     */
-    private void handleCreateAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        // 检查是否是超级管理员
-        HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("admin") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
-            return;
-        }
-        
-        Administrator currentAdmin = (Administrator) session.getAttribute("admin");
-        if (!currentAdmin.isSuperAdmin()) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "权限不足，仅超级管理员可执行此操作");
-            return;
-        }
-        
-        try {
-            Administrator newAdmin = GSON.fromJson(req.getReader(), Administrator.class);
-            
-            // 简单验证
-            if (newAdmin.getAdminId() == null || newAdmin.getAdminId().isEmpty() ||
-                newAdmin.getName() == null || newAdmin.getName().isEmpty() ||
-                newAdmin.getPassword() == null || newAdmin.getPassword().isEmpty() ||
-                newAdmin.getRole() == null || newAdmin.getRole().isEmpty()) {
-                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "管理员信息不完整，ID、姓名、密码和角色不能为空");
-                return;
-            }
-            
-            // 检查是否存在同ID的管理员
-            if (administratorDao.getAdministratorById(newAdmin.getAdminId()) != null) {
-                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_CONFLICT, "管理员ID已存在");
-                return;
-            }
-            
-            boolean success = administratorDao.addAdministrator(newAdmin);
-            
-            if (success) {
-                // 移除密码字段
-                newAdmin.setPassword(null);
-                ResponseUtil.sendSuccessResponse(resp, "管理员创建成功", newAdmin);
-            } else {
-                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "管理员创建失败");
-            }
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "创建管理员失败", e);
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "创建管理员失败：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 处理更新管理员信息（仅超级管理员可操作）
-     */
-    private void handleUpdateAdmin(HttpServletRequest req, HttpServletResponse resp, String adminId) throws IOException {
-        // 检查是否是超级管理员
-        HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("admin") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
-            return;
-        }
-        
-        Administrator currentAdmin = (Administrator) session.getAttribute("admin");
-        if (!currentAdmin.isSuperAdmin() && !currentAdmin.getAdminId().equals(adminId)) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "权限不足，仅超级管理员或本人可执行此操作");
-            return;
-        }
-        
-        try {
-            JsonObject requestBody = GSON.fromJson(req.getReader(), JsonObject.class);
-            
-            // 获取现有管理员信息
-            Administrator admin = administratorDao.getAdministratorById(adminId);
-            if (admin == null) {
-                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "管理员不存在");
-                return;
-            }
-            
-            // 更新基本信息
-            if (requestBody.has("name")) {
-                admin.setName(requestBody.get("name").getAsString());
-            }
-            
-            // 仅超级管理员可更新角色
-            if (requestBody.has("role") && currentAdmin.isSuperAdmin()) {
-                admin.setRole(requestBody.get("role").getAsString());
-            }
-            
-            // 处理密码更新
-            if (requestBody.has("password")) {
-                String newPassword = requestBody.get("password").getAsString();
-                boolean passwordSuccess = administratorDao.updatePassword(adminId, newPassword);
-                
-                if (!passwordSuccess) {
-                    ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "更新密码失败");
-                    return;
-                }
-            }
-            
-            boolean success = administratorDao.updateAdministrator(admin);
-            
-            if (success) {
-                // 移除密码字段
-                admin.setPassword(null);
-                ResponseUtil.sendSuccessResponse(resp, "管理员信息更新成功", admin);
-                
-                // 如果更新的是当前登录的管理员，同步更新Session
-                if (adminId.equals(currentAdmin.getAdminId())) {
-                    session.setAttribute("admin", admin);
-                }
-            } else {
-                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "管理员信息更新失败");
-            }
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "更新管理员信息失败", e);
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "更新管理员信息失败：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 处理删除管理员（仅超级管理员可操作）
-     */
-    private void handleDeleteAdmin(HttpServletRequest req, HttpServletResponse resp, String adminId) throws IOException {
-        // 检查是否是超级管理员
-        HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("admin") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
-            return;
-        }
-        
-        Administrator currentAdmin = (Administrator) session.getAttribute("admin");
-        if (!currentAdmin.isSuperAdmin()) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "权限不足，仅超级管理员可执行此操作");
-            return;
-        }
-        
-        // 防止删除自己
-        if (adminId.equals(currentAdmin.getAdminId())) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "不能删除当前登录的管理员账号");
-            return;
-        }
-        
-        // 检查是否存在此管理员
-        Administrator admin = administratorDao.getAdministratorById(adminId);
-        if (admin == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "管理员不存在");
-            return;
-        }
-        
-        boolean success = administratorDao.deleteAdministrator(adminId);
-        
-        if (success) {
-            ResponseUtil.sendSuccessResponse(resp, "管理员删除成功", null);
-        } else {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "管理员删除失败");
+            resp.sendError(HttpServletResponse.SC_NOT_FOUND, "未找到指定的统计路径: " + pathInfo);
         }
     }
 
@@ -368,26 +107,12 @@ public class AdminServlet extends HttpServlet {
      * 处理获取系统概览统计数据
      */
     private void handleGetSystemOverview(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        // 检查管理员登录状态
-        HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("admin") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
-            return;
-        }
-        
         try {
-            // 初始化各DAO
-            StudentDAO studentDAO = new StudentDAO();
-            CourseDAO courseDAO = new CourseDAO();
-            EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
-            
-            // 获取各项统计数据
             int totalStudents = studentDAO.getTotalStudentCount();
             int totalCourses = courseDAO.getTotalCourseCount();
             int totalEnrollments = enrollmentDAO.getTotalEnrollmentCount();
-            int recentStudents = studentDAO.getRecentRegisteredStudentCount(7); // 最近7天注册的学生
+            int recentStudents = studentDAO.getRecentRegisteredStudentCount(7);
             
-            // 构建返回数据
             Map<String, Object> overviewData = new HashMap<>();
             overviewData.put("totalStudents", totalStudents);
             overviewData.put("totalCourses", totalCourses);
@@ -406,22 +131,11 @@ public class AdminServlet extends HttpServlet {
      * 处理获取学生统计数据
      */
     private void handleGetStudentStats(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        // 检查管理员登录状态
-        HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("admin") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
-            return;
-        }
-        
         try {
-            StudentDAO studentDAO = new StudentDAO();
-            
-            // 获取学生相关统计数据
             int totalStudents = studentDAO.getTotalStudentCount();
-            int recentStudents = studentDAO.getRecentRegisteredStudentCount(30); // 最近30天
+            int recentStudents = studentDAO.getRecentRegisteredStudentCount(30);
             List<Object[]> genderDistribution = studentDAO.getGenderDistribution();
             
-            // 构建返回数据
             Map<String, Object> studentStats = new HashMap<>();
             studentStats.put("totalStudents", totalStudents);
             studentStats.put("recentStudents", recentStudents);
@@ -439,23 +153,12 @@ public class AdminServlet extends HttpServlet {
      * 处理获取课程统计数据
      */
     private void handleGetCourseStats(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        // 检查管理员登录状态
-        HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("admin") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
-            return;
-        }
-        
         try {
-            CourseDAO courseDAO = new CourseDAO();
-            
-            // 获取课程相关统计数据
             int totalCourses = courseDAO.getTotalCourseCount();
             List<Object[]> coursesByDepartment = courseDAO.getCoursesCountByDepartment();
             java.math.BigDecimal avgCredit = courseDAO.getAverageCourseCredit();
-            List<Object[]> popularCourses = courseDAO.getMostPopularCourses(10); // 前10门热门课程
+            List<Object[]> popularCourses = courseDAO.getMostPopularCourses(10);
             
-            // 构建返回数据
             Map<String, Object> courseStats = new HashMap<>();
             courseStats.put("totalCourses", totalCourses);
             courseStats.put("coursesByDepartment", coursesByDepartment);
@@ -471,37 +174,352 @@ public class AdminServlet extends HttpServlet {
     }
     
     /**
-     * 处理获取选课统计数据
+     * 处理获取选课统计数据 (Retained for /stats/enrollments)
      */
     private void handleGetEnrollmentStats(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        // 检查管理员登录状态
-        HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("admin") == null) {
-            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
-            return;
-        }
-        
         try {
-            EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
-            
-            // 获取选课相关统计数据
             int totalEnrollments = enrollmentDAO.getTotalEnrollmentCount();
             List<Object[]> dailyStats = enrollmentDAO.getDailyEnrollmentStats(30); // 最近30天
             List<Object[]> averageGrades = enrollmentDAO.getAverageGradesByCourse();
             List<Object[]> gradeDistribution = enrollmentDAO.getGradeDistribution();
             
-            // 构建返回数据
             Map<String, Object> enrollmentStats = new HashMap<>();
             enrollmentStats.put("totalEnrollments", totalEnrollments);
-            enrollmentStats.put("dailyStatistics", dailyStats);
+            enrollmentStats.put("dailyEnrollmentStatisticsLast30Days", dailyStats); 
             enrollmentStats.put("averageGradesByCourse", averageGrades);
-            enrollmentStats.put("gradeDistribution", gradeDistribution);
+            enrollmentStats.put("overallGradeDistribution", gradeDistribution);
             
             ResponseUtil.sendSuccessResponse(resp, "获取选课统计数据成功", enrollmentStats);
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "获取选课统计数据失败", e);
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
                     "获取选课统计数据失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取全部统计信息
+     */
+    private void handleGetAllStatsCombined(HttpServletRequest req, HttpServletResponse resp, Administrator admin) throws IOException {
+        try {
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("studentCount", studentDAO.getTotalStudentCount());
+            stats.put("courseCount", courseDAO.getTotalCourseCount());
+            stats.put("activeUsersToday", loginLogDao.getTodayActiveStudentsCount());
+            stats.put("recentTransactions", transactionDAO.getRecentTransactions(10));
+            
+            ResponseUtil.sendSuccessResponse(resp, "成功获取所有组合统计信息", stats);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "获取所有组合统计信息失败", e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取所有组合统计信息失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取今日活跃用户数
+     */
+    private void handleGetActiveUsersCombined(HttpServletRequest req, HttpServletResponse resp, Administrator admin) throws IOException {
+        try {
+            int count = loginLogDao.getTodayActiveStudentsCount();
+            ResponseUtil.sendSuccessResponse(resp, "成功获取今日活跃用户数", count);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "获取今日活跃用户数失败", e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取今日活跃用户数失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取最近交易记录
+     */
+    private void handleGetRecentTransactionsCombined(HttpServletRequest req, HttpServletResponse resp, Administrator admin) throws IOException {
+        try {
+            int limit = 10;
+            String limitParam = req.getParameter("limit");
+            if (limitParam != null && !limitParam.isEmpty()) {
+                try {
+                    limit = Integer.parseInt(limitParam);
+                    if (limit > 100) limit = 100;
+                    if (limit <= 0) limit = 10;
+                } catch (NumberFormatException e) {
+                    // Ignore, use default
+                }
+            }
+            List<Transaction> transactions = transactionDAO.getRecentTransactions(limit);
+            ResponseUtil.sendSuccessResponse(resp, "成功获取最近交易记录", transactions);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "获取最近交易记录失败", e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取最近交易记录失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 处理POST请求
+     */
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        String pathInfo = req.getPathInfo();
+        
+        HttpSession session = req.getSession(false);
+        if (pathInfo != null && pathInfo.equals("/login")) {
+            handleLogin(req, resp);
+        } else {
+            if (!isUserAdmin(session)) {
+                 ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
+                 return;
+            }
+            Administrator currentAdmin = (Administrator) session.getAttribute("admin");
+
+            if (pathInfo == null || pathInfo.equals("/")) {
+                handleCreateAdmin(req, resp);
+            } else {
+                resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+            }
+        }
+    }
+
+    /**
+     * 处理PUT请求
+     */
+    @Override
+    protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        String pathInfo = req.getPathInfo();
+        
+        HttpSession session = req.getSession(false);
+        if (!isUserAdmin(session)) {
+             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
+             return;
+        }
+
+        if (pathInfo != null && pathInfo.matches("^/[^/]+/?$")) {
+            String adminId = pathInfo.substring(1).replaceAll("/$", "");
+            handleUpdateAdmin(req, resp, adminId);
+        } else {
+            resp.sendError(HttpServletResponse.SC_NOT_FOUND, "无效的更新路径: " + pathInfo);
+        }
+    }
+
+    /**
+     * 处理DELETE请求
+     */
+    @Override
+    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        String pathInfo = req.getPathInfo();
+        
+        HttpSession session = req.getSession(false);
+        if (!isUserAdmin(session)) {
+             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
+             return;
+        }
+
+        if (pathInfo != null && pathInfo.matches("^/[^/]+/?$")) {
+            String adminId = pathInfo.substring(1).replaceAll("/$", "");
+            handleDeleteAdmin(req, resp, adminId);
+        } else {
+            resp.sendError(HttpServletResponse.SC_NOT_FOUND, "无效的删除路径: " + pathInfo);
+        }
+    }
+
+    /**
+     * 处理管理员登录
+     */
+    private void handleLogin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        try {
+            JsonObject requestBody = GSON.fromJson(req.getReader(), JsonObject.class);
+            String adminId = requestBody.get("adminId").getAsString();
+            String password = requestBody.get("password").getAsString();
+
+            Administrator admin = administratorDao.login(adminId, password);
+
+            if (admin != null) {
+                HttpSession session = req.getSession();
+                session.setAttribute("admin", admin);
+                session.setAttribute("userType", "admin");
+                admin.setPassword(null);
+                ResponseUtil.sendSuccessResponse(resp, "登录成功", admin);
+            } else {
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "管理员ID或密码错误");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "管理员登录失败", e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "登录失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 处理获取当前登录的管理员信息
+     */
+    private void handleGetCurrentAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        HttpSession session = req.getSession(false);
+        Administrator admin = (Administrator) session.getAttribute("admin");
+        Administrator safeAdmin = new Administrator();
+        safeAdmin.setAdminId(admin.getAdminId());
+        safeAdmin.setName(admin.getName());
+        safeAdmin.setRole(admin.getRole());
+        safeAdmin.setCreatedAt(admin.getCreatedAt());
+        safeAdmin.setLastLogin(admin.getLastLogin());
+        ResponseUtil.sendSuccessResponse(resp, "成功获取管理员信息", safeAdmin);
+    }
+
+    /**
+     * 处理管理员退出登录
+     */
+    private void handleLogout(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        HttpSession session = req.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+        ResponseUtil.sendSuccessResponse(resp, "退出登录成功", null);
+    }
+
+    /**
+     * 处理获取所有管理员列表（仅超级管理员可访问）
+     */
+    private void handleGetAllAdmins(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        HttpSession session = req.getSession(false);
+        Administrator currentAdmin = (Administrator) session.getAttribute("admin");
+
+        if (!currentAdmin.isSuperAdmin()) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "权限不足，仅超级管理员可执行此操作");
+            return;
+        }
+        
+        List<Administrator> admins = administratorDao.getAllAdministrators();
+        for (Administrator adm : admins) {
+            adm.setPassword(null);
+        }
+        ResponseUtil.sendSuccessResponse(resp, "成功获取所有管理员列表", admins);
+    }
+
+    /**
+     * 处理创建新管理员（仅超级管理员可操作）
+     */
+    private void handleCreateAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        HttpSession session = req.getSession(false);
+        Administrator currentAdmin = (Administrator) session.getAttribute("admin");
+
+        if (!currentAdmin.isSuperAdmin()) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "权限不足，仅超级管理员可执行此操作");
+            return;
+        }
+        
+        try {
+            Administrator newAdmin = GSON.fromJson(req.getReader(), Administrator.class);
+            if (newAdmin.getAdminId() == null || newAdmin.getAdminId().isEmpty() ||
+                newAdmin.getName() == null || newAdmin.getName().isEmpty() ||
+                newAdmin.getPassword() == null || newAdmin.getPassword().isEmpty() ||
+                newAdmin.getRole() == null || newAdmin.getRole().isEmpty()) {
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "管理员信息不完整，ID、姓名、密码和角色不能为空");
+                return;
+            }
+            if (administratorDao.getAdministratorById(newAdmin.getAdminId()) != null) {
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_CONFLICT, "管理员ID已存在");
+                return;
+            }
+            
+            boolean success = administratorDao.addAdministrator(newAdmin);
+            
+            if (success) {
+                newAdmin.setPassword(null);
+                ResponseUtil.sendSuccessResponse(resp, "管理员创建成功", newAdmin);
+            } else {
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "管理员创建失败");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "创建管理员失败", e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "创建管理员失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 处理更新管理员信息（仅超级管理员或本人可操作）
+     */
+    private void handleUpdateAdmin(HttpServletRequest req, HttpServletResponse resp, String adminIdToUpdate) throws IOException {
+        HttpSession session = req.getSession(false);
+        Administrator currentAdmin = (Administrator) session.getAttribute("admin");
+
+        if (!currentAdmin.isSuperAdmin() && !currentAdmin.getAdminId().equals(adminIdToUpdate)) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "权限不足，仅超级管理员或本人可执行此操作");
+            return;
+        }
+        
+        try {
+            JsonObject requestBody = GSON.fromJson(req.getReader(), JsonObject.class);
+            Administrator adminToUpdate = administratorDao.getAdministratorById(adminIdToUpdate);
+
+            if (adminToUpdate == null) {
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "管理员不存在");
+                return;
+            }
+            
+            boolean changed = false;
+            if (requestBody.has("name")) {
+                adminToUpdate.setName(requestBody.get("name").getAsString());
+                changed = true;
+            }
+            
+            if (requestBody.has("role") && currentAdmin.isSuperAdmin()) {
+                adminToUpdate.setRole(requestBody.get("role").getAsString());
+                changed = true;
+            }
+            
+            boolean passwordUpdateSuccess = true;
+            if (requestBody.has("password")) {
+                String newPassword = requestBody.get("password").getAsString();
+                passwordUpdateSuccess = administratorDao.updatePassword(adminIdToUpdate, newPassword);
+                 if (!passwordUpdateSuccess) {
+                    ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "更新密码失败");
+                    return;
+                }
+            }
+            
+            boolean infoUpdateSuccess = true;
+            if(changed){
+                 infoUpdateSuccess = administratorDao.updateAdministrator(adminToUpdate);
+            }
+
+            if (infoUpdateSuccess && passwordUpdateSuccess) {
+                adminToUpdate.setPassword(null);
+                ResponseUtil.sendSuccessResponse(resp, "管理员信息更新成功", adminToUpdate);
+                if (adminIdToUpdate.equals(currentAdmin.getAdminId())) {
+                    session.setAttribute("admin", administratorDao.getAdministratorById(adminIdToUpdate));
+                }
+            } else if (!infoUpdateSuccess){
+                 ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "管理员基本信息更新失败");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "更新管理员信息失败", e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "更新管理员信息失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 处理删除管理员（仅超级管理员可操作）
+     */
+    private void handleDeleteAdmin(HttpServletRequest req, HttpServletResponse resp, String adminIdToDelete) throws IOException {
+        HttpSession session = req.getSession(false);
+        Administrator currentAdmin = (Administrator) session.getAttribute("admin");
+
+        if (!currentAdmin.isSuperAdmin()) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "权限不足，仅超级管理员可执行此操作");
+            return;
+        }
+        if (adminIdToDelete.equals(currentAdmin.getAdminId())) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "不能删除当前登录的管理员账号");
+            return;
+        }
+        
+        Administrator adminToDelete = administratorDao.getAdministratorById(adminIdToDelete);
+        if (adminToDelete == null) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "管理员不存在");
+            return;
+        }
+        
+        boolean success = administratorDao.deleteAdministrator(adminIdToDelete);
+        if (success) {
+            ResponseUtil.sendSuccessResponse(resp, "管理员删除成功", null);
+        } else {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "管理员删除失败");
         }
     }
 } 

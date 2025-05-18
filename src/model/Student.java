@@ -2,6 +2,7 @@ package model;
 
 import com.google.gson.annotations.SerializedName;
 import java.util.Date;
+import java.sql.Timestamp;
 
 /**
  * 学生实体类
@@ -21,6 +22,14 @@ public class Student {
     private double balance;
     @SerializedName("department_id")
     private String deptId;
+    @SerializedName("dept_name")
+    private String deptName;
+    @SerializedName("status")
+    private String status; // 额外字段，用于标识好友关系状态
+    @SerializedName("recommend_reason")
+    private String recommendReason; // 推荐理由
+    @SerializedName("reject_time")
+    private Timestamp rejectTime; // 拒绝时间
     
     public Student() {
     }
@@ -108,6 +117,38 @@ public class Student {
         this.deptId = deptId;
     }
     
+    public String getDeptName() {
+        return deptName;
+    }
+    
+    public void setDeptName(String deptName) {
+        this.deptName = deptName;
+    }
+    
+    public String getStatus() {
+        return status;
+    }
+    
+    public void setStatus(String status) {
+        this.status = status;
+    }
+    
+    public String getRecommendReason() {
+        return recommendReason;
+    }
+    
+    public void setRecommendReason(String recommendReason) {
+        this.recommendReason = recommendReason;
+    }
+    
+    public Timestamp getRejectTime() {
+        return rejectTime;
+    }
+    
+    public void setRejectTime(Timestamp rejectTime) {
+        this.rejectTime = rejectTime;
+    }
+    
     @Override
     public String toString() {
         return "Student{" +
@@ -117,7 +158,11 @@ public class Student {
                 ", idCard='" + idCard + '\'' +
                 ", address='" + address + '\'' +
                 ", deptId='" + deptId + '\'' +
+                ", deptName='" + deptName + '\'' +
+                ", status='" + status + '\'' +
                 ", balance=" + balance +
+                ", recommendReason='" + recommendReason + '\'' +
+                ", rejectTime=" + rejectTime +
                 ", createdAt=" + createdAt +
                 '}';
     }

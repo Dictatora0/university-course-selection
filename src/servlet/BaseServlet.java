@@ -50,9 +50,32 @@ public abstract class BaseServlet extends HttpServlet {
         String methodName = requestURI.substring(requestURI.lastIndexOf("/") + 1);
         System.out.println("[BaseServlet] 调用方法: " + methodName);
         
+        // 处理空路径或根路径
+        if (methodName.isEmpty()) {
+            methodName = "root"; // 尝试调用root方法
+            System.out.println("[BaseServlet] 空路径，尝试调用root方法");
+        }
+        
         try {
             Method method = this.getClass().getMethod(methodName, HttpServletRequest.class, HttpServletResponse.class);
             method.invoke(this, req, resp);
+        } catch (NoSuchMethodException e) {
+            // 如果root方法不存在，尝试index方法
+            if (methodName.equals("root")) {
+                try {
+                    System.out.println("[BaseServlet] root方法不存在，尝试调用index方法");
+                    Method indexMethod = this.getClass().getMethod("index", HttpServletRequest.class, HttpServletResponse.class);
+                    indexMethod.invoke(this, req, resp);
+                    return;
+                } catch (Exception ex) {
+                    // 如果index方法也不存在，则转给原有的HTTP方法处理
+                    System.out.println("[BaseServlet] index方法也不存在，转发到对应的HTTP方法处理");
+                    super.service(req, resp);
+                }
+            } else {
+                System.err.println("[BaseServlet] 未找到方法 " + methodName);
+                super.service(req, resp);
+            }
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println("[BaseServlet] 调用方法 " + methodName + " 失败: " + e.getMessage());
