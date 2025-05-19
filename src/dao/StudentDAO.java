@@ -561,4 +561,44 @@ public class StudentDAO {
             return false;
         }
     }
+
+    /**
+     * 搜索学生（支持学号、姓名和院系名称的模糊匹配）
+     * @param keyword 搜索关键词
+     * @return 匹配的学生列表
+     */
+    public List<Student> searchStudents(String keyword) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        List<Student> students = new ArrayList<>();
+        
+        try {
+            conn = DBConnection.getConnection();
+            // 构建SQL查询，支持学号、姓名和院系名称的模糊匹配
+            String sql = "SELECT s.*, d.dept_name FROM student s " +
+                    "LEFT JOIN department d ON s.dept_id = d.dept_id " +
+                    "WHERE s.student_id LIKE ? OR s.name LIKE ? OR d.dept_name LIKE ?";
+            
+            pstmt = conn.prepareStatement(sql);
+            String searchPattern = "%" + keyword + "%";
+            pstmt.setString(1, searchPattern);
+            pstmt.setString(2, searchPattern);
+            pstmt.setString(3, searchPattern);
+            
+            rs = pstmt.executeQuery();
+            
+            while (rs.next()) {
+                Student student = mapResultSetToStudent(rs);
+                students.add(student);
+            }
+        } catch (SQLException e) {
+            System.err.println("[StudentDAO.searchStudents] SQLException: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
+        }
+        
+        return students;
+    }
 } 

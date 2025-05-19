@@ -332,4 +332,53 @@ public class CourseDAO {
         
         return popularCourses;
     }
+    
+    /**
+     * 搜索课程（支持课程ID、课程名称和院系名称的模糊匹配）
+     * @param keyword 搜索关键词
+     * @return 匹配的课程列表
+     */
+    public List<Course> searchCourses(String keyword) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        List<Course> courses = new ArrayList<>();
+        
+        try {
+            conn = DBConnection.getConnection();
+            // 构建SQL查询，支持课程ID、课程名称和院系名称的模糊匹配
+            String sql = "SELECT c.*, d.dept_name, " +
+                    "(SELECT COUNT(*) FROM Enrollment e WHERE e.course_id = c.course_id) AS enrollment_count " +
+                    "FROM Course c " +
+                    "JOIN Department d ON c.dept_id = d.dept_id " +
+                    "WHERE c.course_id LIKE ? OR c.course_name LIKE ? OR d.dept_name LIKE ?";
+            
+            pstmt = conn.prepareStatement(sql);
+            String searchPattern = "%" + keyword + "%";
+            pstmt.setString(1, searchPattern);
+            pstmt.setString(2, searchPattern);
+            pstmt.setString(3, searchPattern);
+            
+            rs = pstmt.executeQuery();
+            
+            while (rs.next()) {
+                Course course = new Course();
+                course.setCourseId(rs.getString("course_id"));
+                course.setCourseName(rs.getString("course_name"));
+                course.setDeptId(rs.getString("dept_id"));
+                course.setCredit(rs.getBigDecimal("credit"));
+                course.setDeptName(rs.getString("dept_name"));
+                course.setCapacity(rs.getInt("capacity"));
+                course.setEnrollmentCount(rs.getInt("enrollment_count"));
+                courses.add(course);
+            }
+        } catch (SQLException e) {
+            System.err.println("[CourseDAO.searchCourses] SQLException: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DBConnection.close(conn, pstmt, rs);
+        }
+        
+        return courses;
+    }
 } 

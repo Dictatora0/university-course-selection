@@ -24,6 +24,24 @@ public class CourseServlet extends BaseServlet {
     private CourseDAO courseDAO = new CourseDAO();
     private static final Gson GSON = new Gson();
     
+    /**
+     * 处理GET请求
+     */
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        String pathInfo = req.getPathInfo();
+        System.out.println("[CourseServlet] doGet pathInfo: " + pathInfo);
+        
+        // 处理搜索请求
+        if (pathInfo != null && pathInfo.equals("/search")) {
+            search(req, resp);
+            return;
+        }
+        
+        // 对于其他GET请求，交给父类处理
+        super.doGet(req, resp);
+    }
+    
     @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String pathInfo = req.getPathInfo();
@@ -164,6 +182,38 @@ public class CourseServlet extends BaseServlet {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "请求数据格式不正确: " + e.getMessage());
         } catch (Exception e) {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务器内部错误: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 搜索课程
+     */
+    public void search(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        System.out.println("[CourseServlet] 进入搜索方法");
+        HttpSession session = req.getSession(false);
+        if (session == null || (session.getAttribute("student") == null && session.getAttribute("admin") == null)) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
+            return;
+        }
+        
+        // 获取搜索关键词
+        String keyword = req.getParameter("keyword");
+        System.out.println("[CourseServlet] 搜索关键词: " + keyword);
+        if (keyword == null || keyword.trim().isEmpty()) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "搜索关键词不能为空");
+            return;
+        }
+        
+        try {
+            // 调用DAO层执行搜索
+            List<Course> courses = courseDAO.searchCourses(keyword);
+            System.out.println("[CourseServlet] 搜索结果数量: " + courses.size());
+            ResponseUtil.sendSuccessResponse(resp, "搜索课程成功", courses);
+        } catch (Exception e) {
+            System.err.println("[CourseServlet] 搜索课程失败: " + e.getMessage());
+            e.printStackTrace();
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
+                    "搜索课程失败: " + e.getMessage());
         }
     }
 } 

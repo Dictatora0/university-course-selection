@@ -953,8 +953,89 @@ function deleteCourse(courseId) {
  */
 function searchCourses() {
     const searchText = document.getElementById('courseSearch').value.trim();
+    console.log('开始搜索课程，关键词:', searchText);
+    if (!searchText) {
+        console.log('搜索框为空，加载所有课程');
+        loadCoursesList(); // 如果搜索框为空，加载所有课程
+        return;
+    }
+    
     console.log('搜索课程:', searchText);
-    // 这里应该实现搜索课程的功能
+    
+    // 显示加载中状态
+    document.getElementById('coursesList').innerHTML = '<tr><td colspan="6" class="loading">搜索中...</td></tr>';
+    
+    // 调用API搜索课程
+    const searchUrl = `/course-selection/api/course/search?keyword=${encodeURIComponent(searchText)}`;
+    console.log('发送请求到:', searchUrl);
+    
+    fetch(searchUrl, {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        console.log('收到响应:', response.status, response.statusText);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const contentType = response.headers.get('content-type');
+        console.log('响应内容类型:', contentType);
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error(`非预期的响应格式：${contentType}，请检查API实现`);
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        console.log('解析响应数据:', data);
+        if (data.success && data.data && data.data.length > 0) {
+            let html = '';
+            
+            data.data.forEach(course => {
+                html += `
+                    <tr>
+                        <td>${course.courseId}</td>
+                        <td>${course.courseName}</td>
+                        <td>${course.deptName || '未知'}</td>
+                        <td>${course.credit}</td>
+                        <td>${course.enrollmentCount || 0}/${course.capacity}</td>
+                        <td>
+                            <button class="btn btn-secondary btn-sm edit-course-btn" data-id="${course.courseId}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-danger btn-sm delete-course-btn" data-id="${course.courseId}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            document.getElementById('coursesList').innerHTML = html;
+            
+            // 添加事件监听
+            document.querySelectorAll('.edit-course-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const courseId = this.getAttribute('data-id');
+                    editCourse(courseId);
+                });
+            });
+            
+            document.querySelectorAll('.delete-course-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const courseId = this.getAttribute('data-id');
+                    deleteCourse(courseId);
+                });
+            });
+        } else {
+            document.getElementById('coursesList').innerHTML = '<tr><td colspan="6">未找到匹配的课程</td></tr>';
+        }
+    })
+    .catch(error => {
+        console.error('搜索课程失败:', error);
+        document.getElementById('coursesList').innerHTML = `<tr><td colspan="6">搜索失败: ${error.message}</td></tr>`;
+    });
 }
 
 /**
@@ -1274,8 +1355,115 @@ function toggleStudentStatus(studentId, currentStatus) {
  */
 function searchStudents() {
     const searchText = document.getElementById('studentSearch').value.trim();
+    console.log('开始搜索学生，关键词:', searchText);
+    if (!searchText) {
+        console.log('搜索框为空，加载所有学生');
+        loadStudentsList(); // 如果搜索框为空，加载所有学生
+        return;
+    }
+    
     console.log('搜索学生:', searchText);
-    // 这里应该实现搜索学生的功能
+    
+    // 显示加载中状态
+    document.getElementById('studentsList').innerHTML = '<tr><td colspan="6" class="loading">搜索中...</td></tr>';
+    
+    // 调用API搜索学生
+    const searchUrl = `/course-selection/api/admin/students/search?keyword=${encodeURIComponent(searchText)}`;
+    console.log('发送请求到:', searchUrl);
+    
+    fetch(searchUrl, {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        console.log('收到响应:', response.status, response.statusText);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const contentType = response.headers.get('content-type');
+        console.log('响应内容类型:', contentType);
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error(`非预期的响应格式：${contentType}，请检查API实现`);
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        console.log('解析响应数据:', data);
+        if (data.success && data.data && data.data.length > 0) {
+            let html = '';
+            
+            data.data.forEach(student => {
+                // 使用下划线格式的字段名，这是后端API返回的格式
+                const studentId = student.student_id;
+                const createdAt = student.created_at;
+                const accountStatus = student.account_status;
+                
+                // 格式化日期（避免Invalid Date）
+                let dateStr = '';
+                try {
+                    if (createdAt) {
+                        dateStr = new Date(createdAt).toLocaleString();
+                    }
+                } catch (e) {
+                    console.error('日期格式化失败:', e);
+                    dateStr = createdAt || '';
+                }
+                
+                html += `
+                    <tr>
+                        <td>${studentId || ''}</td>
+                        <td>${student.name || ''}</td>
+                        <td>${dateStr}</td>
+                        <td>${student.balance ? student.balance.toFixed(2) : '0.00'}</td>
+                        <td>${accountStatus ? '正常' : '禁用'}</td>
+                        <td>
+                            <button class="btn btn-secondary btn-sm view-student-btn" data-id="${studentId}">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-warning btn-sm toggle-status-btn" data-id="${studentId}" data-status="${accountStatus}">
+                                ${accountStatus ? '<i class="bi bi-lock"></i>' : '<i class="bi bi-unlock"></i>'}
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            document.getElementById('studentsList').innerHTML = html;
+            
+            // 添加事件监听
+            document.querySelectorAll('.view-student-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const studentId = this.getAttribute('data-id');
+                    if (studentId) {
+                        viewStudentDetail(studentId);
+                    } else {
+                        alert('获取学生ID失败');
+                    }
+                });
+            });
+            
+            document.querySelectorAll('.toggle-status-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const studentId = this.getAttribute('data-id');
+                    if (!studentId) {
+                        alert('获取学生ID失败');
+                        return;
+                    }
+                    
+                    const currentStatus = this.getAttribute('data-status') === 'true';
+                    toggleStudentStatus(studentId, currentStatus);
+                });
+            });
+        } else {
+            document.getElementById('studentsList').innerHTML = '<tr><td colspan="6">未找到匹配的学生</td></tr>';
+        }
+    })
+    .catch(error => {
+        console.error('搜索学生失败:', error);
+        document.getElementById('studentsList').innerHTML = `<tr><td colspan="6">搜索失败: ${error.message}</td></tr>`;
+    });
 }
 
 /**

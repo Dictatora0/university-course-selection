@@ -67,6 +67,8 @@ public class AdminServlet extends HttpServlet {
             handleStatsRequests(req, resp, pathInfo, currentAdmin);
         } else if (pathInfo.startsWith("/transactions")) {
             handleTransactionRequests(req, resp, pathInfo, currentAdmin);
+        } else if (pathInfo.equals("/students/search")) {
+            handleSearchStudents(req, resp);
         } else if (pathInfo.startsWith("/students/")) {
             // 处理获取单个学生详情的请求
             String studentId = pathInfo.substring("/students/".length());
@@ -674,6 +676,40 @@ public class AdminServlet extends HttpServlet {
             LOGGER.log(Level.SEVERE, "获取学生详情失败", e);
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
                     "获取学生详情失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 处理学生搜索请求
+     */
+    private void handleSearchStudents(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        System.out.println("[AdminServlet] 进入handleSearchStudents方法");
+        try {
+            // 获取搜索关键词
+            String keyword = req.getParameter("keyword");
+            System.out.println("[AdminServlet] 搜索关键词: " + keyword);
+            
+            if (keyword == null || keyword.trim().isEmpty()) {
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "搜索关键词不能为空");
+                return;
+            }
+            
+            // 调用DAO层执行搜索
+            List<Student> students = studentDAO.searchStudents(keyword);
+            System.out.println("[AdminServlet] 搜索结果数量: " + students.size());
+            
+            // 出于安全考虑，不返回密码
+            for (Student student : students) {
+                student.setPassword(null);
+            }
+            
+            ResponseUtil.sendSuccessResponse(resp, "搜索学生成功", students);
+        } catch (Exception e) {
+            System.err.println("[AdminServlet] 搜索学生失败: " + e.getMessage());
+            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "搜索学生失败", e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
+                    "搜索学生失败: " + e.getMessage());
         }
     }
 } 
