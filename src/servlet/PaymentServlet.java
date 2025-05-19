@@ -198,25 +198,32 @@ public class PaymentServlet extends HttpServlet {
      */
     private void handleTransfer(String fromStudentId, String toStudentId, BigDecimal amount, String description, 
                                HttpServletResponse response, HttpServletRequest request) throws IOException, SQLException {
-        // 获取学生信息
+        // 检查发起方和接收方ID是否相同
+        if (fromStudentId.equals(toStudentId)) {
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "不能向自己转账");
+            return;
+        }
+        
+        // 检查转账金额是否合理
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "转账金额必须大于0");
+            return;
+        }
+        
+        // 获取转出方和接收方学生信息
         Student fromStudent = studentDAO.findById(fromStudentId);
         Student toStudent = studentDAO.findById(toStudentId);
         
         if (fromStudent == null) {
-            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "未找到转出方学生信息");
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "转出方学生不存在");
             return;
         }
         
         if (toStudent == null) {
-            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "未找到接收方学生信息");
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "接收方学生不存在");
             return;
         }
         
-        if (fromStudentId.equals(toStudentId)) {
-            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "不能给自己转账");
-            return;
-        }
-
         // 检查余额是否足够
         if (fromStudent.getBalance() < amount.doubleValue()) {
             ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "余额不足，当前余额: " + fromStudent.getBalance());
@@ -253,6 +260,26 @@ public class PaymentServlet extends HttpServlet {
                     ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, 
                             "超过今日最大交易次数限制 " + control.getMaxDailyTransactions() + "次");
                     return;
+                }
+                
+                // 检查频繁转账 - 在指定时间窗口内进行多次转账
+                int recentTransfers = txDao.getTransferCountInTimeWindow(fromStudentId, control.getFrequentTransferTimeWindow());
+                if (control.isFrequentTransfer(recentTransfers)) {
+                    // 这里我们不阻止转账，而是返回一个包含警告信息的成功响应
+                    JsonObject jsonResponse = new JsonObject();
+                    jsonResponse.addProperty("success", true);
+                    jsonResponse.addProperty("warning", true);
+                    jsonResponse.addProperty("message", "检测到您在短时间内进行了多次转账，请确认这些操作是您本人进行的");
+                    jsonResponse.addProperty("warningType", "FREQUENT_TRANSFER");
+                    jsonResponse.addProperty("details", "在过去" + control.getFrequentTransferTimeWindow() + 
+                            "分钟内已进行" + recentTransfers + "次转账操作");
+                    
+                    // 继续处理转账...但记录警告信息
+                    logger.log(Level.WARNING, "检测到频繁转账行为: 学生ID=" + fromStudentId + 
+                            ", 时间窗口=" + control.getFrequentTransferTimeWindow() + "分钟, 转账次数=" + recentTransfers);
+                    
+                    // 设置标志以便在转账完成后返回带有警告的响应
+                    request.setAttribute("TRANSFER_WARNING_RESPONSE", jsonResponse.toString());
                 }
             }
         } catch (Exception e) {
@@ -302,8 +329,16 @@ public class PaymentServlet extends HttpServlet {
         fromStudent.setBalance(fromNewBalance);
         request.getSession().setAttribute("student", fromStudent);
         
-        // 返回成功信息
-        ResponseUtil.sendSuccessResponse(response, "转账成功，已向 " + toStudent.getName() + " 转账 " + amount + " 元");
+        // 检查是否有频繁转账警告需要返回
+        String warningResponse = (String) request.getAttribute("TRANSFER_WARNING_RESPONSE");
+        if (warningResponse != null) {
+            // 返回带有警告的成功信息
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write(warningResponse);
+        } else {
+            // 返回普通成功信息
+            ResponseUtil.sendSuccessResponse(response, "转账成功，已向 " + toStudent.getName() + " 转账 " + amount + " 元");
+        }
     }
 
     /**

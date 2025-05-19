@@ -128,6 +128,14 @@ public class TransactionDAO {
                 transaction.setStudentName(rs.getString("student_name"));
                 transaction.setRelatedStudentName(rs.getString("related_student_name")); // 如果没有 related_student_id，则为 null
                 
+                // 设置交易状态，默认为true(成功)，因为数据库中可能没有此字段
+                try {
+                    transaction.setStatus(rs.getBoolean("status"));
+                } catch (SQLException e) {
+                    // 如果列不存在，设置一个默认值为true（成功）
+                    transaction.setStatus(true);
+                }
+                
                 transactions.add(transaction);
             }
         } catch (SQLException e) {
@@ -147,7 +155,7 @@ public class TransactionDAO {
      */
     public List<Transaction> getRecentTransactions(int limit) {
         List<Transaction> transactions = new ArrayList<>();
-        String sql = "SELECT * FROM Transaction ORDER BY transaction_date DESC LIMIT ?";
+        String sql = "SELECT * FROM Transaction ORDER BY transaction_time DESC LIMIT ?";
         
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -165,7 +173,7 @@ public class TransactionDAO {
                     transaction.setAmount(rs.getBigDecimal("amount"));
                     
                     transaction.setDescription(rs.getString("description"));
-                    transaction.setTransactionDate(rs.getTimestamp("transaction_date"));
+                    transaction.setTransactionDate(rs.getTimestamp("transaction_time"));
                     
                     // Transaction可能没有status字段，我们检查它是否存在
                     try {
@@ -246,6 +254,43 @@ public class TransactionDAO {
             pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, studentId);
             pstmt.setTimestamp(2, new Timestamp(date.getTime()));
+            
+            rs = pstmt.executeQuery();
+            if (rs.next()) {
+                count = rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try { if (rs != null) rs.close(); } catch (SQLException e) { e.printStackTrace(); }
+            try { if (pstmt != null) pstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { e.printStackTrace(); }
+        }
+        return count;
+    }
+
+    /**
+     * 检测用户在指定时间窗口内的转账次数
+     * @param studentId 学生ID
+     * @param minutes 时间窗口（分钟）
+     * @return 时间窗口内的转账次数
+     */
+    public int getTransferCountInTimeWindow(String studentId, int minutes) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        int count = 0;
+
+        try {
+            conn = DBConnection.getConnection();
+            // 查询指定时间窗口内的转账次数
+            String sql = "SELECT COUNT(*) FROM Transaction " +
+                        "WHERE student_id = ? AND type = 'TRANSFER' " +
+                        "AND transaction_time >= DATE_SUB(NOW(), INTERVAL ? MINUTE)";
+            
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setString(1, studentId);
+            pstmt.setInt(2, minutes);
             
             rs = pstmt.executeQuery();
             if (rs.next()) {

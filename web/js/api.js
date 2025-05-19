@@ -201,58 +201,82 @@ const API = {
     // 支付API
     payment: {
         deposit: async function(amount) {
-            const response = await fetch(`${API.baseUrl}/payment/deposit`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ amount }),
-                credentials: 'include'
-            });
-            
-            return API.handleResponse(response);
+            try {
+                const response = await fetch(`${API.baseUrl}/payment/deposit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `amount=${amount}`,
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    return { success: true, message: data.message };
+                } else {
+                    throw new Error(data.message || '充值失败');
+                }
+            } catch (error) {
+                console.error('充值失败:', error);
+                throw error;
+            }
         },
+        
         withdraw: async function(amount) {
-            const response = await fetch(`${API.baseUrl}/payment/withdraw`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ amount }),
-                credentials: 'include'
-            });
-            
-            return API.handleResponse(response);
+            try {
+                const response = await fetch(`${API.baseUrl}/payment/withdraw`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `amount=${amount}`,
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    return { success: true, message: data.message };
+                } else {
+                    throw new Error(data.message || '提现失败');
+                }
+            } catch (error) {
+                console.error('提现失败:', error);
+                throw error;
+            }
         },
+        
         transfer: async function(toStudentId, amount, description = '') {
-            console.log(`发起转账请求: 转给 ${toStudentId}, 金额 ${amount}, 描述: ${description}`);
-            
-            // 获取当前用户信息，用于记录转账发送方
-            const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-            
-            const requestData = {
-                toStudentId: toStudentId,
-                amount: amount,
-                description: description,
-                // 添加额外信息，帮助后端记录完整的转账信息
-                fromStudentId: currentUser.studentId,
-                fromStudentName: currentUser.name
-            };
-            
-            console.log("转账请求数据:", requestData);
-            
-            const response = await fetch(`${API.baseUrl}/payment/transfer`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestData),
-                credentials: 'include'
-            });
-            
-            const result = await API.handleResponse(response);
-            console.log("转账响应数据:", result);
-            return result;
+            try {
+                const response = await fetch(`${API.baseUrl}/payment/transfer`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `toStudentId=${toStudentId}&amount=${amount}&description=${encodeURIComponent(description)}`,
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // 检查是否有频繁转账警告
+                    if (data.warning && data.warningType === 'FREQUENT_TRANSFER') {
+                        // 显示警告给用户但不阻止转账
+                        const warningConfirmed = confirm(`${data.message}\n\n${data.details}\n\n点击确定继续完成转账，或取消终止操作。`);
+                        
+                        if (!warningConfirmed) {
+                            throw new Error('用户取消了转账操作');
+                        }
+                    }
+                    
+                    return { success: true, message: data.message };
+                } else {
+                    throw new Error(data.message || '转账失败');
+                }
+            } catch (error) {
+                console.error('转账失败:', error);
+                throw error;
+            }
         }
     },
     
