@@ -1,5 +1,33 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log("学生仪表盘初始化开始...");
+    
+    // 添加API对象检测
+    if (typeof API === 'undefined') {
+        console.error("API对象未定义! 请检查api.js是否正确加载");
+        
+        // 显示全局错误信息
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger m-3';
+        errorDiv.innerHTML = `
+            <h4>加载错误</h4>
+            <p>API接口未初始化，无法加载数据。可能的原因：</p>
+            <ul>
+                <li>API脚本(api.js)未正确加载</li>
+                <li>网络连接问题</li>
+                <li>后端服务未启动</li>
+            </ul>
+            <p>请尝试刷新页面，或检查控制台错误信息。</p>
+            <button class="btn btn-primary" onclick="location.reload()">刷新页面</button>
+        `;
+        
+        document.body.insertBefore(errorDiv, document.body.firstChild);
+        return;
+    } else {
+        console.log("API对象已定义:", API);
+        console.log("API baseUrl:", API.baseUrl);
+        console.log("API可用方法:", Object.keys(API).join(', '));
+    }
+    
     // 初始化 - 首先尝试从localStorage获取用户信息
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const userType = localStorage.getItem('userType');
@@ -109,92 +137,242 @@ document.addEventListener('DOMContentLoaded', function() {
         const studentDeptEl = document.getElementById('studentDept');
         if(studentDeptEl) studentDeptEl.textContent = user.deptName ? `(${user.deptName})` : '';
         
-    const today = new Date();
-    const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+        const today = new Date();
+        const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
         const currentDateEl = document.getElementById('currentDate');
         if(currentDateEl) currentDateEl.textContent = today.toLocaleDateString('zh-CN', options);
+
+        // 直接调用关键数据加载函数
+        setTimeout(() => {
+            console.log("直接初始化加载所有关键数据...");
+            try {
+                // 加载课程数据
+                loadAllCourses();
+                loadEnrolledCourses();
+                loadDepartmentsForFilter();
+                
+                // 加载钱包数据
+                loadBalance();
+                loadTransactions();
+                
+                // 加载好友数据
+                loadFriends();
+                loadFriendRecommendations();
+                
+                // 加载个人信息
+                loadProfileInfo();
+                
+                // 加载消息数据
+                loadRecentContacts();
+            } catch (error) {
+                console.error("初始化加载数据时出错:", error);
+                window.showToast("初始化数据加载失败，请尝试刷新页面或检查网络连接", "danger");
+            }
+        }, 500); // 延迟500毫秒以确保DOM完全加载
     }
 
     function setupEventListeners() {
-        // Tab切换
-        document.querySelectorAll('.sidebar .nav-link, [data-tab-target]').forEach(link => {
-            link.addEventListener('click', function(e) {
+        // 主导航选项卡点击事件
+        document.querySelectorAll('.main-nav-link').forEach(function(navLink) {
+            navLink.addEventListener('click', function(e) {
                 e.preventDefault();
-                const tabId = this.dataset.tab || this.dataset.tabTarget;
-                showTab(tabId);
+                const targetTabId = this.getAttribute('data-tab');
+                console.log(`点击导航链接，目标Tab: ${targetTabId}`);
+                if(targetTabId) {
+                    showTab(targetTabId);
+                }
             });
         });
-
-        // 退出登录
-        document.getElementById('logoutBtn').addEventListener('click', logout);
-
-        // 钱包相关
-        document.getElementById('depositBtn')?.addEventListener('click', () => togglePaymentForm('depositForm', true));
-        document.getElementById('withdrawBtn')?.addEventListener('click', () => togglePaymentForm('withdrawForm', true));
-        document.getElementById('cancelDepositBtn')?.addEventListener('click', () => togglePaymentForm('depositForm', false));
-        document.getElementById('cancelWithdrawBtn')?.addEventListener('click', () => togglePaymentForm('withdrawForm', false));
-        document.getElementById('confirmDepositBtn')?.addEventListener('click', handleDeposit);
-        document.getElementById('confirmWithdrawBtn')?.addEventListener('click', handleWithdraw);
-
-        // 好友页面相关
-        document.getElementById('addFriendForm')?.addEventListener('submit', handleAddFriend);
-        document.getElementById('searchStudentBtn')?.addEventListener('click', handleSearchStudents);
-        document.getElementById('friendSearchInput')?.addEventListener('input', filterFriendList);
         
-        // 浮动聊天窗口相关
-        document.getElementById('closeChatWindowBtn')?.addEventListener('click', () => {
-            const chatWindow = document.getElementById('chatWindow');
-            if(chatWindow) chatWindow.style.display = 'none';
+        // 快捷操作按钮点击事件 (data-tab-target)
+        document.querySelectorAll('[data-tab-target]').forEach(function(button) {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetTabId = this.getAttribute('data-tab-target');
+                console.log(`点击快捷按钮，目标Tab: ${targetTabId}`);
+                if(targetTabId) {
+                    showTab(targetTabId);
+                }
+            });
         });
-        document.getElementById('chatWindowMessageForm')?.addEventListener('submit', handleChatWindowSendMessage);
-        document.getElementById('chatWindowTransferBtn')?.addEventListener('click', handleChatWindowTransfer);
         
-        // 主消息页面相关
-        document.getElementById('mainMessageForm')?.addEventListener('submit', handleMainSendMessage);
+        // 个人信息页面的选项卡切换事件
+        document.querySelectorAll('#profileTabs .nav-link').forEach(function(tabLink) {
+            tabLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                // 移除所有选项卡的active类
+                document.querySelectorAll('#profileTabs .nav-link').forEach(link => link.classList.remove('active'));
+                // 当前选项卡添加active类
+                this.classList.add('active');
+                
+                // 获取目标内容ID
+                const targetId = this.getAttribute('href');
+                // 隐藏所有内容
+                document.querySelectorAll('.tab-pane').forEach(pane => {
+                    pane.classList.remove('show', 'active');
+                });
+                // 显示目标内容
+                document.querySelector(targetId).classList.add('show', 'active');
+            });
+        });
+        
+        // 注销按钮点击事件
+        document.getElementById('logoutBtn')?.addEventListener('click', function() {
+            logout();
+        });
+        
+        // 查看消息按钮点击事件
+        document.getElementById('viewMessagesBtn')?.addEventListener('click', function() {
+            showTab('messages');
+            loadRecentContacts();
+        });
+        
+        // 课程搜索
+        document.getElementById('courseSearchBtn')?.addEventListener('click', function() {
+            const searchTerm = document.getElementById('courseSearchInput').value.toLowerCase();
+            const selectedDept = document.getElementById('deptFilter').value;
+            filterAndRenderAvailableCourses(searchTerm, selectedDept);
+        });
+        
+        // 充值表单相关事件
+        document.getElementById('showDepositFormBtn')?.addEventListener('click', function() {
+            togglePaymentForm('depositForm', true);
+        });
+        
+        document.getElementById('depositBtn')?.addEventListener('click', function() {
+            handleDeposit();
+        });
+        
+        // 提现表单相关事件
+        document.getElementById('showWithdrawFormBtn')?.addEventListener('click', function() {
+            togglePaymentForm('withdrawForm', true);
+        });
+        
+        document.getElementById('withdrawBtn')?.addEventListener('click', function() {
+            handleWithdraw();
+        });
+        
+        // 好友添加相关事件
+        document.getElementById('addFriendForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            handleAddFriend(e);
+        });
+        
+        // 好友搜索相关事件
+        document.getElementById('searchStudentsForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            handleSearchStudents();
+        });
+        
+        // 好友过滤器
+        document.getElementById('friendFilterInput')?.addEventListener('input', filterFriendList);
+        
+        // 主聊天窗口发送消息
+        document.getElementById('mainChatMessageForm')?.addEventListener('submit', handleMainSendMessage);
+        
+        // 浮动聊天窗口相关事件
+        document.getElementById('chatWindowMessageForm')?.addEventListener('submit', handleChatWindowSendMessage);
+        document.getElementById('closeChatWindowBtn')?.addEventListener('click', function() {
+            document.getElementById('chatWindow').style.display = 'none';
+        });
+        
+        // 主聊天转账按钮
         document.getElementById('mainChatTransferBtn')?.addEventListener('click', handleMainChatTransfer);
+        
+        // 浮动聊天窗口转账按钮
+        document.getElementById('chatWindowTransferBtn')?.addEventListener('click', handleChatWindowTransfer);
     }
 
     function showTab(tabId) {
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-        document.querySelectorAll('.sidebar .nav-link').forEach(link => link.classList.remove('active'));
-
-        const activeTabContent = document.getElementById(tabId);
-        const activeSidebarLink = document.querySelector(`.sidebar .nav-link[data-tab="${tabId}"]`);
-
-        if (activeTabContent) activeTabContent.classList.add('active');
-        if (activeSidebarLink) activeSidebarLink.classList.add('active');
+        console.log(`显示Tab: ${tabId}`);
         
-        switch (tabId) {
-            case 'dashboardMain':
-                loadMainPageData();
-                break;
-            case 'courses':
+        // 检查Tab元素是否存在
+        const tabElement = document.getElementById(tabId);
+        if (!tabElement) {
+            console.warn(`找不到ID为 ${tabId} 的Tab元素，尝试映射或查找替代元素...`);
+            
+            // 尝试查找替代元素
+            if (tabId === 'myCourses' && document.getElementById('my-courses')) {
+                console.log("映射 myCourses -> my-courses");
+                tabId = 'my-courses';
+            } else if (tabId === 'wallet' && document.getElementById('payment')) {
+                console.log("映射 wallet -> payment");
+                tabId = 'payment';
+            }
+        }
+        
+        // 隐藏所有标签页
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        
+        // 显示选中的标签页
+        const targetTab = document.getElementById(tabId);
+        if (targetTab) {
+            targetTab.classList.add('active');
+            
+            // 根据选中的标签页执行特定的加载逻辑
+            if (tabId === 'courses') {
                 loadAllCourses();
-                loadDepartmentsForFilter();
-                break;
-            case 'my-courses':
                 loadEnrolledCourses();
-                break;
-            case 'payment':
+                loadDepartmentsForFilter();
+            } else if (tabId === 'friends') {
+                loadFriends();
+                loadFriendRecommendations();
+            } else if (tabId === 'messages') {
+                // 加载消息相关内容
+                loadRecentContacts();
+                
+                // 默认显示一条提示信息
+                const chatContainer = document.getElementById('mainChatContainer');
+                if (chatContainer) {
+                    chatContainer.innerHTML = `
+                        <div class="d-flex flex-column justify-content-center align-items-center h-100 text-muted">
+                            <i class="bi bi-chat-dots fs-1 mb-3"></i>
+                            <p>与 ... 聊天中</p>
+                            <p class="small">选择一个联系人开始聊天</p>
+                        </div>
+                    `;
+                }
+                
+                // 启动消息轮询
+                startMessagePolling();
+            } else if (tabId === 'payment') {
                 loadBalance();
                 loadTransactions();
-                break;
-            case 'friends':
-                loadFriendsAndRecommendations();
-                break;
-            case 'messages':
-                loadRecentContacts();
-                // Clear main chat area when switching to messages tab initially
-                const mainChatContainer = document.getElementById('mainChatMessagesContainer');
-                if(mainChatContainer) mainChatContainer.innerHTML = '<p class="text-center my-auto text-muted">选择一个联系人开始聊天</p>';
-                document.getElementById('chattingWithName').textContent = '...';
-                document.getElementById('mainMessageInput').disabled = true;
-                document.getElementById('mainSendMessageBtn').disabled = true;
-                document.getElementById('mainChatTransferBtn').disabled = true;
-                break;    
-            case 'profile':
+            } else if (tabId === 'profile') {
                 loadProfileInfo();
-                break;
+                
+                // 确保基本信息选项卡是激活的
+                const basicInfoTab = document.querySelector('a[href="#basicInfo"]');
+                const accountSettingsTab = document.querySelector('a[href="#accountSettings"]');
+                const basicInfoPane = document.getElementById('basicInfo');
+                const accountSettingsPane = document.getElementById('accountSettings');
+                
+                if (basicInfoTab && accountSettingsTab && basicInfoPane && accountSettingsPane) {
+                    basicInfoTab.classList.add('active');
+                    accountSettingsTab.classList.remove('active');
+                    basicInfoPane.classList.add('show', 'active');
+                    accountSettingsPane.classList.remove('show', 'active');
+                }
+            } else if (tabId === 'my-courses') {
+                loadEnrolledCourses();
+            }
+            
+            // 更新导航链接的 active 状态
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                const linkTabId = link.getAttribute('data-tab');
+                if (linkTabId === tabId) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+            
+            // 保存当前选中的标签页到 localStorage
+            localStorage.setItem('currentTab', tabId);
+        } else {
+            console.error(`未找到ID为 ${tabId} 的Tab元素，无法显示`);
         }
     }
     
@@ -283,8 +461,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function loadAllCourses() {
+        console.log("开始加载所有课程");
+        const tbody = document.getElementById('coursesList');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">更新中...</td></tr>';
+        } else {
+            console.warn("coursesList tbody not found");
+            return;
+        }
+
         try {
+            // 检查API对象的可用性
+            if (!API || !API.course || typeof API.course.list !== 'function') {
+                console.error("API.course.list 未定义或不是函数", API);
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">API未正确加载，请刷新页面重试</td></tr>';
+                return;
+            }
+            
+            console.log("调用 API.course.list...");
             const allCourses = await API.course.list();
+            console.log("课程数据获取结果:", allCourses);
             const enrolledCourses = await API.enrollment.list();
             const enrolledCourseIds = enrolledCourses.map(course => course.courseId);
             const availableCourses = allCourses.filter(course => !enrolledCourseIds.includes(course.courseId));
@@ -297,8 +493,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function loadEnrolledCourses() {
+        console.log("开始加载已选课程");
+        const tbody = document.getElementById('myCoursesList');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center">更新中...</td></tr>';
+        } else {
+            console.warn("myCoursesList tbody not found");
+            return;
+        }
+
         try {
+            // 检查API对象的可用性
+            if (!API || !API.enrollment || typeof API.enrollment.list !== 'function') {
+                console.error("API.enrollment.list 未定义或不是函数", API);
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">API未正确加载，请刷新页面重试</td></tr>';
+                return;
+            }
+            
+            console.log("调用 API.enrollment.list...");
             const enrolledCourses = await API.enrollment.list();
+            console.log("已选课程数据获取结果:", enrolledCourses);
             renderCoursesTable(enrolledCourses, 'myCoursesList', true);
         } catch (error) {
             console.error('获取已选课程失败:', error);
@@ -310,7 +524,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderCoursesTable(courses, tableBodyId, isMyCourses) {
         const tbody = document.getElementById(tableBodyId);
         if (!tbody) return;
-        tbody.innerHTML = '';
+        tbody.innerHTML = ''; // This will clear the "更新中..." or "加载中..." message
         
         if (!courses || courses.length === 0) {
             const colspan = isMyCourses ? 6 : 5;
@@ -357,14 +571,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function dropCourse(courseId) {
-        if (confirm(`确定要退选课程 ${courseId} 吗？`)) {
-            try {
-                await API.enrollment.drop(courseId);
-                window.showToast(`课程 ${courseId} 退课成功!`, 'success');
-                loadAllCourses();
-                loadEnrolledCourses();
-            } catch (error) {
-                window.showToast(`退课失败: ${error.message}`, 'danger');
+        // 获取已选课程列表，找到对应的课程名称
+        try {
+            const enrolledCourses = await API.enrollment.list();
+            const course = enrolledCourses.find(c => c.courseId === courseId);
+            const courseName = course ? course.courseName : courseId;
+            
+            if (confirm(`确定要退选课程 ${courseName} (${courseId}) 吗？`)) {
+                try {
+                    await API.enrollment.drop(courseId);
+                    window.showToast(`课程 ${courseName} 退课成功!`, 'success');
+                    loadAllCourses();
+                    loadEnrolledCourses();
+                } catch (error) {
+                    window.showToast(`退课失败: ${error.message}`, 'danger');
+                }
+            }
+        } catch (error) {
+            // 如果获取课程名称失败，仍然显示课程ID
+            if (confirm(`确定要退选课程 ${courseId} 吗？`)) {
+                try {
+                    await API.enrollment.drop(courseId);
+                    window.showToast(`课程 ${courseId} 退课成功!`, 'success');
+                    loadAllCourses();
+                    loadEnrolledCourses();
+                } catch (error) {
+                    window.showToast(`退课失败: ${error.message}`, 'danger');
+                }
             }
         }
     }
@@ -480,12 +713,30 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function loadBalance() {
+        console.log("开始加载账户余额");
+        const balanceAmountEl = document.getElementById('balanceAmount');
+        const profileBalanceEl = document.getElementById('profileBalance');
+        const mainBalanceAmountEl = document.getElementById('mainBalanceAmount');
+
+        if(balanceAmountEl) balanceAmountEl.textContent = '更新中...';
+        if(profileBalanceEl) profileBalanceEl.textContent = '更新中...';
+        if(mainBalanceAmountEl) mainBalanceAmountEl.textContent = '更新中...';
+        
         try {
+            // 检查API对象的可用性
+            if (!API || !API.student || typeof API.student.getInfo !== 'function') {
+                console.error("API.student.getInfo 未定义或不是函数", API);
+                if(balanceAmountEl) balanceAmountEl.textContent = 'API错误';
+                if(profileBalanceEl) profileBalanceEl.textContent = 'API错误';
+                if(mainBalanceAmountEl) mainBalanceAmountEl.textContent = 'API错误';
+                return;
+            }
+            
+            console.log("调用 API.student.getInfo...");
             const studentInfo = await API.student.getInfo();
+            console.log("学生信息获取结果:", studentInfo);
+            
             const balance = parseFloat(studentInfo.balance || 0).toFixed(2);
-            const balanceAmountEl = document.getElementById('balanceAmount');
-            const profileBalanceEl = document.getElementById('profileBalance');
-            const mainBalanceAmountEl = document.getElementById('mainBalanceAmount');
 
             if(balanceAmountEl) balanceAmountEl.textContent = `¥ ${balance}`;
             if(profileBalanceEl) profileBalanceEl.textContent = `¥ ${balance}`;
@@ -499,9 +750,22 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function loadTransactions() {
+        console.log("开始加载交易记录");
+        const listElement = document.getElementById('transactionList');
+        if(!listElement) return;
+        listElement.innerHTML = '<li class="list-group-item text-center">更新中...</li>'; // Clear "加载中..." first
+        
         try {
+            // 检查API对象的可用性
+            if (!API || !API.transaction || typeof API.transaction.list !== 'function') {
+                console.error("API.transaction.list 未定义或不是函数", API);
+                listElement.innerHTML = '<li class="list-group-item text-center text-danger">API未正确加载，请刷新页面重试</li>';
+                return;
+            }
+            
+            console.log("调用 API.transaction.list...");
             const transactions = await API.transaction.list();
-            const listElement = document.getElementById('transactionList');
+            console.log("交易记录获取结果:", transactions);
             if(!listElement) return;
             listElement.innerHTML = '';
             if (!transactions || transactions.length === 0) {
@@ -628,16 +892,27 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function loadFriends() {
-        try {
-            const friendsData = await API.friendship.list(); 
-            console.log("获取好友列表数据:", friendsData);
-            
-            const container = document.getElementById('friendListContainer');
-            if (!container) {
-                console.error("好友列表容器 'friendListContainer' 未找到。");
+        console.log("开始加载好友列表");
+        const container = document.getElementById('friendListContainer');
+        if (!container) {
+            console.error("好友列表容器 'friendListContainer' 未找到。");
             return;
         }
-            container.innerHTML = ''; 
+        container.innerHTML = '<p class="text-center text-muted">更新中...</p>'; 
+
+        try {
+            // 检查API对象的可用性
+            if (!API || !API.friendship || typeof API.friendship.list !== 'function') {
+                console.error("API.friendship.list 未定义或不是函数", API);
+                container.innerHTML = '<p class="text-center text-danger">API未正确加载，请刷新页面重试</p>';
+                return;
+            }
+            
+            console.log("调用 API.friendship.list...");
+            const friendsData = await API.friendship.list(); 
+            console.log("好友列表数据:", friendsData);
+            
+            container.innerHTML = ''; // 在获取数据后清空容器
 
             // 处理API返回的数据格式，统一字段名
             const normalizedFriends = friendsData.map(friend => ({
@@ -884,20 +1159,34 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function loadFriendRecommendations() {
+        console.log("开始加载好友推荐");
+        const listElement = document.getElementById('recommendedFriendsList');
+        if(!listElement) return;
+        listElement.innerHTML = '<li class="list-group-item text-muted text-center">更新中...</li>';
+            
         try {
+            // 检查API对象的可用性
+            if (!API || !API.friendship || typeof API.friendship.recommendations !== 'function') {
+                console.error("API.friendship.recommendations 未定义或不是函数", API);
+                listElement.innerHTML = '<li class="list-group-item text-center text-danger">API未正确加载，请刷新页面重试</li>';
+                return;
+            }
+            
+            console.log("调用 API.friendship.recommendations...");
             const recommendations = await API.friendship.recommendations('all', 5); 
-            const listElement = document.getElementById('recommendedFriendsList');
-            if(!listElement) return;
+            console.log("好友推荐数据:", recommendations);
+            
+            // 清空列表，删除"更新中..."
             listElement.innerHTML = '';
             
             if (!recommendations || recommendations.length === 0) {
                 listElement.innerHTML = '<li class="list-group-item text-muted text-center">暂无好友推荐</li>';
-            return;
-        }
+                return;
+            }
             
-            console.log("好友推荐数据:", recommendations);
-        
-        recommendations.forEach(friend => {
+            // 处理后续的推荐项目渲染...
+
+            recommendations.forEach(friend => {
                 // 确保studentId字段存在，规范化API返回的数据
                 const studentId = friend.student_id || friend.studentId;
                 const name = friend.name || '未知姓名';
@@ -1090,7 +1379,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function loadRecentContacts() {
         const listElement = document.getElementById('recentContactsList');
         if(!listElement) return;
-        listElement.innerHTML = '<p class="list-group-item text-muted text-center">加载中...</p>'; // Loading state
+        listElement.innerHTML = '<p class="list-group-item text-center">更新中...</p>'; // Loading state
         
         // 先检查登录状态
         const isLoggedIn = await checkLoginStatus();
@@ -1176,16 +1465,24 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log("获取到的联系人数据:", contacts);
             
             if (!contacts || contacts.length === 0) {
-                listElement.innerHTML = '<p class="list-group-item text-muted text-center">没有最近联系人</p>';
-                // 如果没有联系人，提供一个按钮生成测试数据
-                const buttonDiv = document.createElement('div');
-                buttonDiv.className = 'text-center mt-3';
-                buttonDiv.innerHTML = `
-                    <button id="generateTestContactsBtn" class="btn btn-sm btn-outline-secondary">
-                        <i class="bi bi-plus-circle"></i> 生成测试联系人
-                    </button>
+                listElement.innerHTML = `
+                    <div class="text-center p-4">
+                        <i class="bi bi-chat-square-text fs-1 text-muted mb-3"></i>
+                        <p class="text-muted">你还没有任何聊天记录</p>
+                        <p class="small text-muted mb-3">从好友列表中选择一位好友开始聊天吧</p>
+                        <button id="goToFriendsBtn" class="btn btn-primary btn-sm">
+                            <i class="bi bi-people"></i> 前往好友列表
+                        </button>
+                        <button id="generateTestContactsBtn" class="btn btn-outline-secondary btn-sm ms-2">
+                            <i class="bi bi-plus-circle"></i> 生成测试数据
+                        </button>
+                    </div>
                 `;
-                listElement.appendChild(buttonDiv);
+                
+                // 添加前往好友列表的按钮点击事件
+                document.getElementById('goToFriendsBtn')?.addEventListener('click', () => {
+                    showTab('friends');
+                });
                 
                 // 添加生成测试数据的功能
                 document.getElementById('generateTestContactsBtn')?.addEventListener('click', () => {
@@ -1302,10 +1599,69 @@ document.addEventListener('DOMContentLoaded', function() {
             }));
             
             if (friends.length === 0) {
-                window.showToast("您没有好友，请先添加好友", "warning");
-            return;
-        }
-        
+                // 如果没有好友，创建一些测试好友数据
+                const testFriends = [
+                    { name: "测试好友1", studentId: "T0001" },
+                    { name: "测试好友2", studentId: "T0002" },
+                    { name: "测试好友3", studentId: "T0003" }
+                ];
+                
+                // 模拟创建测试消息数据
+                window.showToast("您没有好友，将创建测试数据（仅供展示用）", "warning");
+                
+                // 创建虚拟的联系人列表HTML
+                const listElement = document.getElementById('recentContactsList');
+                if (listElement) {
+                    listElement.innerHTML = '';
+                    
+                    testFriends.forEach(friend => {
+                        // 创建测试消息项
+                        const testMessages = [
+                            "你好！这是一条测试消息。",
+                            "请问你最近怎么样？",
+                            "周末有空一起去看电影吗？"
+                        ];
+                        const randomMessage = testMessages[Math.floor(Math.random() * testMessages.length)];
+                        const randomUnread = Math.random() > 0.5 ? Math.floor(Math.random() * 5) : 0;
+                        
+                        const item = document.createElement('a');
+                        item.href = '#';
+                        item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+                        const avatarLetter = friend.name.charAt(0).toUpperCase();
+                        const avatarBgColor = getRandomColor(friend.studentId);
+                        
+                        item.innerHTML = `
+                            <div class="d-flex align-items-center">
+                                <div class="friend-avatar me-2" style="background-color: ${avatarBgColor}; width: 40px; height: 40px; font-size: 0.9rem;">${avatarLetter}</div>
+                                <div class="flex-grow-1">
+                                    <strong class="d-block">${friend.name} <small class="text-muted">(测试数据)</small></strong>
+                                    <small class="d-block text-muted text-truncate" style="max-width: 150px;">${randomMessage}</small>
+                                </div>
+                            </div>
+                            ${randomUnread > 0 ? `<span class="badge bg-danger rounded-pill">${randomUnread}</span>` : ''}
+                        `;
+                        
+                        item.onclick = (e) => {
+                            e.preventDefault();
+                            window.showToast("这是测试数据，无法查看对话", "info");
+                        };
+                        
+                        listElement.appendChild(item);
+                    });
+                    
+                    // 添加提示信息
+                    const infoElement = document.createElement('div');
+                    infoElement.className = 'alert alert-info mt-3 small';
+                    infoElement.innerHTML = `
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        这是模拟的测试数据，仅用于演示界面。请先添加好友并发送消息，才能看到真实的聊天记录。
+                    `;
+                    listElement.appendChild(infoElement);
+                }
+                
+                return;
+            }
+            
             // 为每个好友发送一条测试消息
             for (const friend of friends) {
                 const message = `这是一条测试消息，发送时间：${new Date().toLocaleString()}`;
@@ -1762,6 +2118,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function replaceLoadProfileInfo() {
         async function loadProfileInfo() {
+            // Set placeholder text for profile elements before fetching data
+            document.getElementById('profileStudentId').textContent = '更新中...';
+            document.getElementById('profileName').textContent = '更新中...';
+            document.getElementById('profileDeptName').textContent = '更新中...';
+            document.getElementById('profileBirthDate').textContent = '更新中...';
+            document.getElementById('profileIdCard').textContent = '更新中...';
+            document.getElementById('profileAddress').textContent = '更新中...';
+            document.getElementById('profileEmail').textContent = '更新中...';
+            document.getElementById('profilePhone').textContent = '更新中...';
+            document.getElementById('profileBalance').textContent = '更新中...';
+            document.getElementById('profileBalanceDisplay').textContent = '更新中...';
+            document.getElementById('profileNameLarge').textContent = '更新中...';
+            document.getElementById('profileDeptNameLarge').textContent = '更新中...';
+            const avatarEl = document.getElementById('profileAvatar');
+            if (avatarEl) {
+                avatarEl.textContent = '?';
+            }
+
             try {
                 // 获取学生信息
                 const student = await API.student.getInfo();
@@ -2062,4 +2436,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         };
     }
+
+    // 在文件末尾添加以下代码，使关键函数全局可用
+    window.showTab = showTab;
 }); 
