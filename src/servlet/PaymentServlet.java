@@ -19,6 +19,8 @@ import javax.servlet.http.HttpSession;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.logging.Level;
@@ -191,27 +193,81 @@ public class PaymentServlet extends HttpServlet {
             return;
         }
 
-        // 更新余额
-        double newBalance = student.getBalance() + amount.doubleValue();
-        boolean success = studentDAO.updateBalance(studentId, newBalance);
-        if (success) {
-            // 记录交易
+        // 计算新余额 - 使用BigDecimal进行计算避免精度问题
+        BigDecimal currentBalance = new BigDecimal(student.getBalance());
+        BigDecimal newBalance = currentBalance.add(amount);
+        
+        // 使用事务管理更新余额和添加交易记录
+        Connection conn = null;
+        boolean success = false;
+        
+        try {
+            conn = util.DBConnection.getConnection();
+            conn.setAutoCommit(false);
+            
+            logTransactionDetails("充值操作", 
+                "学生: " + student.getName() + "(" + studentId + ")", 
+                "原余额: " + student.getBalance(),
+                "充值金额: " + amount,
+                "新余额: " + newBalance);
+            
+            // 使用StudentDAO更新余额
+            if (!studentDAO.updateBalance(studentId, newBalance)) {
+                throw new SQLException("更新余额失败");
+            }
+            
+            logTransactionDetails("余额更新", "充值余额更新成功", "新余额: " + newBalance);
+            
+            // 记录充值交易
             Transaction transaction = new Transaction();
             transaction.setStudentId(studentId);
-            transaction.setAmount(amount);
+            transaction.setAmount(amount);  // 充值金额为正数
             transaction.setType(Transaction.TransactionType.DEPOSIT);
             transaction.setDescription("账户充值");
+            transaction.setStatus(true); // 设置交易状态为成功
             
-            transactionDAO.add(transaction);
+            if (!transactionDAO.add(transaction)) {
+                throw new SQLException("创建充值交易记录失败");
+            }
+            
+            logTransactionDetails("交易记录", "充值交易记录创建成功", "ID: " + transaction.getTransactionId());
+            
+            // 提交事务
+            conn.commit();
+            success = true;
             
             // 更新session中的学生对象
-            student.setBalance(newBalance);
+            student.setBalance(newBalance.doubleValue());
             request.getSession().setAttribute("student", student);
             
             // 返回成功信息
-            ResponseUtil.sendSuccessResponse(response, "充值成功，已添加 " + amount + " 元到账户");
-        } else {
-            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "充值失败");
+            ResponseUtil.sendSuccessResponse(response, "充值成功，已向账户充值 " + amount + " 元");
+            
+        } catch (SQLException e) {
+            // 发生异常时回滚事务
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                    logTransactionDetails("充值错误", "发生异常，事务已回滚", "错误: " + e.getMessage());
+                } catch (SQLException ex) {
+                    logger.log(Level.SEVERE, "回滚事务失败", ex);
+                }
+            }
+            
+            // 记录错误并向客户端返回错误信息
+            logger.log(Level.SEVERE, "充值过程中发生错误", e);
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
+                    "充值失败: " + e.getMessage());
+        } finally {
+            // 无论成功或失败，最后都要关闭连接并恢复自动提交
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                } catch (SQLException ex) {
+                    logger.log(Level.SEVERE, "关闭数据库连接失败", ex);
+                }
+            }
         }
     }
 
@@ -226,33 +282,87 @@ public class PaymentServlet extends HttpServlet {
             return;
         }
 
-        // 检查余额是否足够
-        if (student.getBalance() < amount.doubleValue()) {
+        // 检查余额是否足够 - 使用BigDecimal进行比较
+        BigDecimal currentBalance = new BigDecimal(student.getBalance());
+        if (currentBalance.compareTo(amount) < 0) {
             ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "余额不足，当前余额: " + student.getBalance());
             return;
         }
 
-        // 更新余额（提现为负数，所以需要取负）
-        double newBalance = student.getBalance() - amount.doubleValue();
-        boolean success = studentDAO.updateBalance(studentId, newBalance);
-        if (success) {
-            // 记录交易
+        // 计算新余额 - 使用BigDecimal进行计算
+        BigDecimal newBalance = currentBalance.subtract(amount);
+        
+        // 使用事务管理更新余额和添加交易记录
+        Connection conn = null;
+        boolean success = false;
+        
+        try {
+            conn = util.DBConnection.getConnection();
+            conn.setAutoCommit(false);
+            
+            logTransactionDetails("提现操作", 
+                "学生: " + student.getName() + "(" + studentId + ")", 
+                "原余额: " + student.getBalance(),
+                "提现金额: " + amount,
+                "新余额: " + newBalance);
+            
+            // 使用StudentDAO更新余额
+            if (!studentDAO.updateBalance(studentId, newBalance)) {
+                throw new SQLException("更新余额失败");
+            }
+            
+            logTransactionDetails("余额更新", "提现余额更新成功", "新余额: " + newBalance);
+            
+            // 记录提现交易（金额为负数表示支出）
             Transaction transaction = new Transaction();
             transaction.setStudentId(studentId);
-            transaction.setAmount(amount.negate());
+            transaction.setAmount(amount.negate()); // 使用负数表示支出
             transaction.setType(Transaction.TransactionType.WITHDRAW);
             transaction.setDescription("账户提现");
+            transaction.setStatus(true); // 设置交易状态为成功
             
-            transactionDAO.add(transaction);
+            if (!transactionDAO.add(transaction)) {
+                throw new SQLException("创建提现交易记录失败");
+            }
+            
+            logTransactionDetails("交易记录", "提现交易记录创建成功", "ID: " + transaction.getTransactionId());
+            
+            // 提交事务
+            conn.commit();
+            success = true;
             
             // 更新session中的学生对象
-            student.setBalance(newBalance);
+            student.setBalance(newBalance.doubleValue());
             request.getSession().setAttribute("student", student);
             
             // 返回成功信息
-            ResponseUtil.sendSuccessResponse(response, "提现成功，已从账户扣除 " + amount + " 元");
-        } else {
-            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "提现失败");
+            ResponseUtil.sendSuccessResponse(response, "提现成功，已从账户提取 " + amount + " 元");
+            
+        } catch (SQLException e) {
+            // 发生异常时回滚事务
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                    logTransactionDetails("提现错误", "发生异常，事务已回滚", "错误: " + e.getMessage());
+                } catch (SQLException ex) {
+                    logger.log(Level.SEVERE, "回滚事务失败", ex);
+                }
+            }
+            
+            // 记录错误并向客户端返回错误信息
+            logger.log(Level.SEVERE, "提现过程中发生错误", e);
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
+                    "提现失败: " + e.getMessage());
+        } finally {
+            // 无论成功或失败，最后都要关闭连接并恢复自动提交
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                } catch (SQLException ex) {
+                    logger.log(Level.SEVERE, "关闭数据库连接失败", ex);
+                }
+            }
         }
     }
 
@@ -261,15 +371,21 @@ public class PaymentServlet extends HttpServlet {
      */
     private void handleTransfer(String fromStudentId, String toStudentId, BigDecimal amount, String description, 
                                HttpServletResponse response, HttpServletRequest request) throws IOException, SQLException {
+        // 添加详细日志
+        logger.log(Level.INFO, "开始处理转账请求: 从 " + fromStudentId + " 到 " + toStudentId + 
+                  ", 金额: " + amount + ", 描述: " + description);
+        
         // 检查发起方和接收方ID是否相同
         if (fromStudentId.equals(toStudentId)) {
             ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "不能向自己转账");
+            logger.log(Level.WARNING, "转账失败: 不能向自己转账");
             return;
         }
         
         // 检查转账金额是否合理
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "转账金额必须大于0");
+            logger.log(Level.WARNING, "转账失败: 金额必须大于0, 当前金额: " + amount);
             return;
         }
         
@@ -277,19 +393,26 @@ public class PaymentServlet extends HttpServlet {
         Student fromStudent = studentDAO.findById(fromStudentId);
         Student toStudent = studentDAO.findById(toStudentId);
         
+        logger.log(Level.INFO, "转账用户信息: 转出方: " + 
+                  (fromStudent != null ? fromStudent.getName() + ", 余额: " + fromStudent.getBalance() : "未找到") + 
+                  ", 接收方: " + (toStudent != null ? toStudent.getName() : "未找到"));
+        
         if (fromStudent == null) {
             ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "转出方学生不存在");
+            logger.log(Level.WARNING, "转账失败: 转出方学生不存在, ID: " + fromStudentId);
             return;
         }
         
         if (toStudent == null) {
             ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "接收方学生不存在");
+            logger.log(Level.WARNING, "转账失败: 接收方学生不存在, ID: " + toStudentId);
             return;
         }
         
         // 检查余额是否足够
         if (fromStudent.getBalance() < amount.doubleValue()) {
             ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "余额不足，当前余额: " + fromStudent.getBalance());
+            logger.log(Level.WARNING, "转账失败: 余额不足, 当前余额: " + fromStudent.getBalance() + ", 转账金额: " + amount);
             return;
         }
         
@@ -352,55 +475,128 @@ public class PaymentServlet extends HttpServlet {
 
         // 更新转出方余额（扣减）
         double fromNewBalance = fromStudent.getBalance() - amount.doubleValue();
-        boolean fromSuccess = studentDAO.updateBalance(fromStudentId, fromNewBalance);
-        
-        if (!fromSuccess) {
-            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "转出方扣款失败");
-            return;
-        }
-        
-        // 更新接收方余额（增加）
         double toNewBalance = toStudent.getBalance() + amount.doubleValue();
-        boolean toSuccess = studentDAO.updateBalance(toStudentId, toNewBalance);
         
-        if (!toSuccess) {
-            // 如果接收方加款失败，回滚转出方的扣款
-            studentDAO.updateBalance(fromStudentId, fromStudent.getBalance());
-            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "接收方加款失败，已回滚转出方扣款");
+        // 获取数据库连接并开始事务
+        Connection conn = null;
+        boolean success = false;
+        
+        try {
+            // 获取连接并设置事务隔离级别
+            conn = util.DBConnection.getConnection();
+            conn.setAutoCommit(false);
+            conn.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            
+            logTransactionDetails("转账事务", 
+                "从" + fromStudent.getName() + "(" + fromStudentId + ")", 
+                "到" + toStudent.getName() + "(" + toStudentId + ")", 
+                "金额: " + amount);
+            
+            // 使用预编译语句更新转出方余额
+            String updateFromSql = "UPDATE Student SET balance = ? WHERE student_id = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(updateFromSql)) {
+                pstmt.setDouble(1, fromNewBalance);
+                pstmt.setString(2, fromStudentId);
+                int updatedRows = pstmt.executeUpdate();
+                
+                if (updatedRows != 1) {
+                    throw new SQLException("更新转出方余额失败，影响行数: " + updatedRows);
+                }
+                
+                logTransactionDetails("余额更新", "转出方余额更新成功", "新余额: " + fromNewBalance);
+            }
+            
+            // 使用预编译语句更新转入方余额
+            String updateToSql = "UPDATE Student SET balance = ? WHERE student_id = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(updateToSql)) {
+                pstmt.setDouble(1, toNewBalance);
+                pstmt.setString(2, toStudentId);
+                int updatedRows = pstmt.executeUpdate();
+                
+                if (updatedRows != 1) {
+                    throw new SQLException("更新转入方余额失败，影响行数: " + updatedRows);
+                }
+                
+                logTransactionDetails("余额更新", "转入方余额更新成功", "新余额: " + toNewBalance);
+            }
+            
+            // 创建转出交易记录
+            Transaction outTransaction = new Transaction();
+            outTransaction.setStudentId(fromStudentId);
+            outTransaction.setRelatedStudentId(toStudentId);
+            outTransaction.setAmount(amount.negate()); // 负数表示转出
+            outTransaction.setType(Transaction.TransactionType.TRANSFER);
+            outTransaction.setDescription("转账给 " + toStudent.getName() + "(" + toStudentId + ")" + (description != null ? ": " + description : ""));
+            
+            if (!transactionDAO.add(outTransaction)) {
+                throw new SQLException("创建转出交易记录失败");
+            }
+            
+            logTransactionDetails("交易记录", "转出交易记录创建成功", "ID: " + outTransaction.getTransactionId());
+            
+            // 创建转入交易记录
+            Transaction inTransaction = new Transaction();
+            inTransaction.setStudentId(toStudentId);
+            inTransaction.setRelatedStudentId(fromStudentId);
+            inTransaction.setAmount(amount); // 正数表示转入
+            inTransaction.setType(Transaction.TransactionType.TRANSFER);
+            inTransaction.setDescription("收到来自 " + fromStudent.getName() + "(" + fromStudentId + ") 的转账" + (description != null ? ": " + description : ""));
+            
+            if (!transactionDAO.add(inTransaction)) {
+                throw new SQLException("创建转入交易记录失败");
+            }
+            
+            logTransactionDetails("交易记录", "转入交易记录创建成功", "ID: " + inTransaction.getTransactionId());
+            
+            // 提交事务
+            conn.commit();
+            success = true;
+            
+            logTransactionDetails("转账结果", "转账事务提交成功");
+            
+            // 更新session中的学生对象
+            fromStudent.setBalance(fromNewBalance);
+            request.getSession().setAttribute("student", fromStudent);
+        } catch (SQLException e) {
+            // 发生异常时回滚事务
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                    logTransactionDetails("转账错误", "发生异常，事务已回滚", "错误: " + e.getMessage());
+                } catch (SQLException ex) {
+                    logger.log(Level.SEVERE, "回滚事务失败", ex);
+                }
+            }
+            
+            // 记录错误并向客户端返回错误信息
+            logger.log(Level.SEVERE, "转账过程中发生错误", e);
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
+                    "转账失败: " + e.getMessage());
             return;
+        } finally {
+            // 无论成功或失败，最后都要关闭连接并恢复自动提交
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                } catch (SQLException ex) {
+                    logger.log(Level.SEVERE, "关闭数据库连接失败", ex);
+                }
+            }
         }
         
-        // 记录转出交易
-        Transaction outTransaction = new Transaction();
-        outTransaction.setStudentId(fromStudentId);
-        outTransaction.setAmount(amount.negate()); // 负数表示转出
-        outTransaction.setType(Transaction.TransactionType.TRANSFER);
-        outTransaction.setDescription("转账给 " + toStudent.getName() + "(" + toStudentId + ")" + (description != null ? ": " + description : ""));
-        
-        transactionDAO.add(outTransaction);
-        
-        // 记录转入交易
-        Transaction inTransaction = new Transaction();
-        inTransaction.setStudentId(toStudentId);
-        inTransaction.setAmount(amount); // 正数表示转入
-        inTransaction.setType(Transaction.TransactionType.TRANSFER);
-        inTransaction.setDescription("收到来自 " + fromStudent.getName() + "(" + fromStudentId + ") 的转账" + (description != null ? ": " + description : ""));
-        
-        transactionDAO.add(inTransaction);
-        
-        // 更新session中的学生对象
-        fromStudent.setBalance(fromNewBalance);
-        request.getSession().setAttribute("student", fromStudent);
-        
-        // 检查是否有频繁转账警告需要返回
-        String warningResponse = (String) request.getAttribute("TRANSFER_WARNING_RESPONSE");
-        if (warningResponse != null) {
-            // 返回带有警告的成功信息
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write(warningResponse);
-        } else {
-            // 返回普通成功信息
-            ResponseUtil.sendSuccessResponse(response, "转账成功，已向 " + toStudent.getName() + " 转账 " + amount + " 元");
+        // 如果成功执行到这里，说明转账成功
+        if (success) {
+            // 检查是否有频繁转账警告需要返回
+            String warningResponse = (String) request.getAttribute("TRANSFER_WARNING_RESPONSE");
+            if (warningResponse != null) {
+                // 返回带有警告的成功信息
+                response.setContentType("application/json;charset=UTF-8");
+                response.getWriter().write(warningResponse);
+            } else {
+                // 返回普通成功信息
+                ResponseUtil.sendSuccessResponse(response, "转账成功，已向 " + toStudent.getName() + " 转账 " + amount + " 元");
+            }
         }
     }
 
@@ -445,5 +641,23 @@ public class PaymentServlet extends HttpServlet {
         } else {
             ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "支付失败");
         }
+    }
+    
+    /**
+     * 记录详细的交易日志
+     * @param operation 操作类型
+     * @param details 详细信息
+     */
+    private void logTransactionDetails(String operation, String... details) {
+        StringBuilder logMessage = new StringBuilder();
+        logMessage.append("[").append(operation).append("] ");
+        
+        if (details != null && details.length > 0) {
+            for (String detail : details) {
+                logMessage.append(detail).append("; ");
+            }
+        }
+        
+        logger.log(Level.INFO, logMessage.toString());
     }
 } 

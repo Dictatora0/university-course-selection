@@ -7,6 +7,7 @@ import util.PasswordUtil;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.math.BigDecimal;
 
 /**
  * 学生数据访问对象，处理与Student表相关的数据库操作
@@ -402,12 +403,39 @@ public class StudentDAO {
         return student;
     }
 
+    /**
+     * 更新学生余额
+     * @param studentId 学生ID
+     * @param newBalance 新余额
+     * @return 更新是否成功
+     */
     public boolean updateBalance(String studentId, double newBalance) {
         String sql = "UPDATE student SET balance = ? WHERE student_id = ?";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             
             pstmt.setDouble(1, newBalance);
+            pstmt.setString(2, studentId);
+            
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
+    /**
+     * 使用BigDecimal更新学生余额，避免精度问题
+     * @param studentId 学生ID
+     * @param newBalance 新余额(BigDecimal类型)
+     * @return 更新是否成功
+     */
+    public boolean updateBalance(String studentId, BigDecimal newBalance) {
+        String sql = "UPDATE student SET balance = ? WHERE student_id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            
+            pstmt.setBigDecimal(1, newBalance);
             pstmt.setString(2, studentId);
             
             return pstmt.executeUpdate() > 0;

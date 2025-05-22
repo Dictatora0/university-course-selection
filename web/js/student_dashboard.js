@@ -294,14 +294,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // 充值表单相关事件
-        const showDepositFormBtn = document.getElementById('showDepositFormBtn');
         const depositBtn = document.getElementById('depositBtn');
-        
-        if (showDepositFormBtn) {
-            showDepositFormBtn.addEventListener('click', function() {
-                togglePaymentForm('depositForm', true);
-            });
-        }
         
         if (depositBtn) {
             // 清除之前的事件监听器
@@ -309,19 +302,20 @@ document.addEventListener('DOMContentLoaded', function() {
             depositBtn.parentNode.replaceChild(cloneBtn, depositBtn);
             
             cloneBtn.addEventListener('click', function() {
-                handleDeposit();
+                console.log("充值按钮被点击");
+                // 直接操作DOM元素显示/隐藏
+                const depositForm = document.getElementById('depositForm');
+                const withdrawForm = document.getElementById('withdrawForm');
+                
+                if (depositForm) depositForm.style.display = 'block';
+                if (withdrawForm) withdrawForm.style.display = 'none';
+                
+                console.log("充值表单已显示，提现表单已隐藏");
             });
         }
         
         // 提现表单相关事件
-        const showWithdrawFormBtn = document.getElementById('showWithdrawFormBtn');
         const withdrawBtn = document.getElementById('withdrawBtn');
-        
-        if (showWithdrawFormBtn) {
-            showWithdrawFormBtn.addEventListener('click', function() {
-                togglePaymentForm('withdrawForm', true);
-            });
-        }
         
         if (withdrawBtn) {
             // 清除之前的事件监听器
@@ -329,7 +323,53 @@ document.addEventListener('DOMContentLoaded', function() {
             withdrawBtn.parentNode.replaceChild(cloneBtn, withdrawBtn);
             
             cloneBtn.addEventListener('click', function() {
+                console.log("提现按钮被点击");
+                // 直接操作DOM元素显示/隐藏
+                const withdrawForm = document.getElementById('withdrawForm');
+                const depositForm = document.getElementById('depositForm');
+                
+                if (withdrawForm) withdrawForm.style.display = 'block';
+                if (depositForm) depositForm.style.display = 'none';
+                
+                console.log("提现表单已显示，充值表单已隐藏");
+            });
+        }
+        
+        // 确认充值按钮
+        const confirmDepositBtn = document.getElementById('confirmDepositBtn');
+        if (confirmDepositBtn) {
+            confirmDepositBtn.addEventListener('click', function() {
+                console.log("确认充值按钮被点击");
+                handleDeposit();
+            });
+        }
+        
+        // 确认提现按钮
+        const confirmWithdrawBtn = document.getElementById('confirmWithdrawBtn');
+        if (confirmWithdrawBtn) {
+            confirmWithdrawBtn.addEventListener('click', function() {
+                console.log("确认提现按钮被点击");
                 handleWithdraw();
+            });
+        }
+        
+        // 取消充值按钮
+        const cancelDepositBtn = document.getElementById('cancelDepositBtn');
+        if (cancelDepositBtn) {
+            cancelDepositBtn.addEventListener('click', function() {
+                console.log("取消充值按钮被点击");
+                const depositForm = document.getElementById('depositForm');
+                if (depositForm) depositForm.style.display = 'none';
+            });
+        }
+        
+        // 取消提现按钮
+        const cancelWithdrawBtn = document.getElementById('cancelWithdrawBtn');
+        if (cancelWithdrawBtn) {
+            cancelWithdrawBtn.addEventListener('click', function() {
+                console.log("取消提现按钮被点击");
+                const withdrawForm = document.getElementById('withdrawForm');
+                if (withdrawForm) withdrawForm.style.display = 'none';
             });
         }
         
@@ -433,9 +473,23 @@ document.addEventListener('DOMContentLoaded', function() {
             loadBalance();
             loadTransactions();
             
-            // 隐藏充值和提现表单
-            togglePaymentForm('depositForm', false);
-            togglePaymentForm('withdrawForm', false);
+            // 确保钱包相关表单被隐藏
+            console.log("确保充值和提现表单被隐藏");
+            try {
+                // 使用延时确保DOM元素已加载
+                setTimeout(() => {
+                    const depositForm = document.getElementById('depositForm');
+                    const withdrawForm = document.getElementById('withdrawForm');
+                    
+                    if (depositForm) depositForm.style.display = 'none';
+                    if (withdrawForm) withdrawForm.style.display = 'none';
+                    
+                    console.log("充值表单状态:", depositForm ? depositForm.style.display : "元素不存在");
+                    console.log("提现表单状态:", withdrawForm ? withdrawForm.style.display : "元素不存在");
+                }, 100);
+            } catch (error) {
+                console.error("隐藏钱包表单时出错:", error);
+            }
         } else if (tabId === 'profile') {
             // 先清空个人信息数据，显示加载中状态
             const profileElements = [
@@ -1378,15 +1432,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // 添加切换支付表单的函数
     function togglePaymentForm(formId, show) {
         const form = document.getElementById(formId);
-        const otherFormId = formId === 'depositForm' ? 'withdrawForm' : 'depositForm';
-        const otherForm = document.getElementById(otherFormId);
-
-        if (form) form.style.display = show ? 'block' : 'none';
-        if (show && otherForm) otherForm.style.display = 'none';
+        if (form) {
+            form.style.display = show ? 'block' : 'none';
+        } else {
+            console.error(`找不到ID为 ${formId} 的表单元素`);
+        }
     }
 
+    // 修改处理充值函数
     async function handleDeposit() {
         console.log("处理充值请求");
         const amountInput = document.getElementById('depositAmountInput');
@@ -1402,10 +1458,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // 禁用按钮防止重复提交
-        const depositBtn = document.getElementById('depositBtn');
-        if (depositBtn) {
-            depositBtn.disabled = true;
-            depositBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 处理中...';
+        const confirmDepositBtn = document.getElementById('confirmDepositBtn');
+        if (confirmDepositBtn) {
+            confirmDepositBtn.disabled = true;
+            confirmDepositBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 处理中...';
         }
         
         try {
@@ -1419,15 +1475,22 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 清空输入框并隐藏表单
             amountInput.value = '';
-            togglePaymentForm('depositForm', false);
+            const depositForm = document.getElementById('depositForm');
+            if (depositForm) depositForm.style.display = 'none';
+            console.log("充值表单已隐藏");
         } catch (error) {
             console.error('充值失败:', error);
-            window.showToast('充值失败: ' + error.message, 'danger');
+            // 显示更具体的错误信息
+            let errorMsg = '充值失败';
+            if (error.message) {
+                errorMsg += ': ' + error.message;
+            }
+            window.showToast(errorMsg, 'danger', 5000); // 显示5秒
         } finally {
             // 恢复按钮状态
-            if (depositBtn) {
-                depositBtn.disabled = false;
-                depositBtn.innerHTML = '确认充值';
+            if (confirmDepositBtn) {
+                confirmDepositBtn.disabled = false;
+                confirmDepositBtn.innerHTML = '确认充值';
             }
         }
     }
@@ -1447,10 +1510,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // 禁用按钮防止重复提交
-        const withdrawBtn = document.getElementById('withdrawBtn');
-        if (withdrawBtn) {
-            withdrawBtn.disabled = true;
-            withdrawBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 处理中...';
+        const confirmWithdrawBtn = document.getElementById('confirmWithdrawBtn');
+        if (confirmWithdrawBtn) {
+            confirmWithdrawBtn.disabled = true;
+            confirmWithdrawBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 处理中...';
         }
         
         try {
@@ -1464,15 +1527,22 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 清空输入框并隐藏表单
             amountInput.value = '';
-            togglePaymentForm('withdrawForm', false);
+            const withdrawForm = document.getElementById('withdrawForm');
+            if (withdrawForm) withdrawForm.style.display = 'none';
+            console.log("提现表单已隐藏");
         } catch (error) {
             console.error('提现失败:', error);
-            window.showToast('提现失败: ' + error.message, 'danger');
+            // 显示更具体的错误信息
+            let errorMsg = '提现失败';
+            if (error.message) {
+                errorMsg += ': ' + error.message;
+            }
+            window.showToast(errorMsg, 'danger', 5000); // 显示5秒
         } finally {
             // 恢复按钮状态
-            if (withdrawBtn) {
-                withdrawBtn.disabled = false;
-                withdrawBtn.innerHTML = '确认提现';
+            if (confirmWithdrawBtn) {
+                confirmWithdrawBtn.disabled = false;
+                confirmWithdrawBtn.innerHTML = '确认提现';
             }
         }
     }
@@ -2199,7 +2269,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 如果是今天，则显示时间
                 sendTime = date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
             } else if (date.toDateString() === yesterday.toDateString()) {
-                // 如果是昨天，显示"昨天 HH:MM"
+                // 如果是昨天，显示"昨天"
                 sendTime = `昨天 ${date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'})}`;
             } else if (daysDiff < 7) {
                 // 如果是一周内，显示星期几

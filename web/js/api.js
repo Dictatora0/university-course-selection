@@ -202,6 +202,7 @@ const API = {
     payment: {
         deposit: async function(amount) {
             try {
+                console.log(`[API.payment.deposit] 开始充值, 金额: ${amount}`);
                 const response = await fetch(`${API.baseUrl}/payment/deposit`, {
                     method: 'POST',
                     headers: {
@@ -213,20 +214,38 @@ const API = {
                     credentials: 'include'
                 });
                 
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`[API.payment.deposit] HTTP错误 ${response.status}: ${errorText}`);
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        throw new Error(errorJson.message || `HTTP错误 ${response.status}`);
+                    } catch (e) {
+                        if (e instanceof SyntaxError) {
+                            throw new Error(`服务器错误 (${response.status}): ${errorText.substring(0, 100)}`);
+                        } else {
+                            throw e;
+                        }
+                    }
+                }
+                
                 const data = await response.json();
+                console.log(`[API.payment.deposit] 响应: `, data);
+                
                 if (data.success) {
                     return { success: true, message: data.message };
                 } else {
-                    throw new Error(data.message || '充值失败');
+                    throw new Error(data.message || '充值失败: 服务器返回失败状态');
                 }
             } catch (error) {
-                console.error('充值失败:', error);
+                console.error('[API.payment.deposit] 充值失败:', error);
                 throw error;
             }
         },
         
         withdraw: async function(amount) {
             try {
+                console.log(`[API.payment.withdraw] 开始提现, 金额: ${amount}`);
                 const response = await fetch(`${API.baseUrl}/payment/withdraw`, {
                     method: 'POST',
                     headers: {
@@ -238,20 +257,38 @@ const API = {
                     credentials: 'include'
                 });
                 
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`[API.payment.withdraw] HTTP错误 ${response.status}: ${errorText}`);
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        throw new Error(errorJson.message || `HTTP错误 ${response.status}`);
+                    } catch (e) {
+                        if (e instanceof SyntaxError) {
+                            throw new Error(`服务器错误 (${response.status}): ${errorText.substring(0, 100)}`);
+                        } else {
+                            throw e;
+                        }
+                    }
+                }
+                
                 const data = await response.json();
+                console.log(`[API.payment.withdraw] 响应: `, data);
+                
                 if (data.success) {
                     return { success: true, message: data.message };
                 } else {
-                    throw new Error(data.message || '提现失败');
+                    throw new Error(data.message || '提现失败: 服务器返回失败状态');
                 }
             } catch (error) {
-                console.error('提现失败:', error);
+                console.error('[API.payment.withdraw] 提现失败:', error);
                 throw error;
             }
         },
         
         transfer: async function(toStudentId, amount, description = '') {
             try {
+                console.log(`[API.payment.transfer] 开始转账, 接收方: ${toStudentId}, 金额: ${amount}, 描述: ${description}`);
                 const response = await fetch(`${API.baseUrl}/payment/transfer`, {
                     method: 'POST',
                     headers: {
@@ -265,7 +302,24 @@ const API = {
                     credentials: 'include'
                 });
                 
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`[API.payment.transfer] HTTP错误 ${response.status}: ${errorText}`);
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        throw new Error(errorJson.message || `HTTP错误 ${response.status}`);
+                    } catch (e) {
+                        if (e instanceof SyntaxError) {
+                            throw new Error(`服务器错误 (${response.status}): ${errorText.substring(0, 100)}`);
+                        } else {
+                            throw e;
+                        }
+                    }
+                }
+                
                 const data = await response.json();
+                console.log(`[API.payment.transfer] 响应: `, data);
+                
                 if (data.success) {
                     // 检查是否有频繁转账警告
                     if (data.warning && data.warningType === 'FREQUENT_TRANSFER') {
@@ -279,10 +333,10 @@ const API = {
                     
                     return { success: true, message: data.message };
                 } else {
-                    throw new Error(data.message || '转账失败');
+                    throw new Error(data.message || '转账失败: 服务器返回失败状态');
                 }
             } catch (error) {
-                console.error('转账失败:', error);
+                console.error('[API.payment.transfer] 转账失败:', error);
                 throw error;
             }
         }
