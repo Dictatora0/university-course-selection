@@ -40,10 +40,15 @@ public class PasswordUtil {
      */
     public static boolean checkPassword(String inputPassword, String hashedPasswordFromDB) {
         if (inputPassword == null || hashedPasswordFromDB == null) {
+            System.out.println("[PasswordUtil.checkPassword] 输入密码或哈希密码为null");
             return false;
         }
         String hashedInputPassword = hashPassword(inputPassword);
-        return hashedPasswordFromDB.equals(hashedInputPassword);
+        System.out.println("[PasswordUtil.checkPassword] 输入密码哈希: " + hashedInputPassword);
+        System.out.println("[PasswordUtil.checkPassword] 数据库密码哈希: " + hashedPasswordFromDB);
+        boolean matches = hashedPasswordFromDB.equals(hashedInputPassword);
+        System.out.println("[PasswordUtil.checkPassword] 密码匹配结果: " + matches);
+        return matches;
     }
     
     /**

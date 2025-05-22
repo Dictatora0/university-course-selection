@@ -379,6 +379,8 @@ public class MessageServlet extends BaseServlet {
             handleGetUnreadMessageCount(req, resp);
         } else if (pathInfo.equals("/recent_contacts")) {
             handleGetRecentContacts(req, resp);
+        } else if (pathInfo.equals("/list")) {
+            handleGetRecentContacts(req, resp);
         } else {
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "未找到请求的资源: GET " + pathInfo);
         }

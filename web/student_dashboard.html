@@ -861,9 +861,9 @@
                     const tabContent = document.getElementById(tabId);
                     if (!tabContent) {
                         console.error(`Tab元素 ${tabId} 未找到`);
-                        return;
-                    }
-                    
+                    return;
+                }
+                
                     // 使用student_dashboard.js中的showTab函数
                     if (typeof window.showTab === 'function') {
                         window.showTab(tabId);
@@ -893,8 +893,8 @@
             /*
             if (!user.studentId || userType !== 'student') {
                 window.location.href = 'index.html';
-                return;
-            }
+                    return;
+                }
             */
 
             // 初始化用户名和日期显示 (这些功能部分也在 student_dashboard.js 中，注意避免冲突)
@@ -953,9 +953,9 @@
                 button.addEventListener('click', function() {
                     const tabId = this.dataset.tabTarget;
                     showTab(tabId);
+                    });
                 });
-            });
-
+                
              // 从 URL hash 初始化 tab (如果存在)
             // const currentHash = window.location.hash.substring(1);
             // if (currentHash) {
@@ -978,7 +978,7 @@
                         localStorage.removeItem('user');
                         localStorage.removeItem('userType');
                         window.location.href = 'index.html';
-                } catch (error) {
+                            } catch (error) {
                         console.error('退出登录失败:', error);
                         alert('退出失败: ' + error.message);
                     }

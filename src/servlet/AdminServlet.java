@@ -330,8 +330,10 @@ public class AdminServlet extends HttpServlet {
 
             if (pathInfo == null || pathInfo.equals("/")) {
                 handleCreateAdmin(req, resp);
-        } else {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+            } else if (pathInfo.equals("/students/create")) {
+                handleCreateStudent(req, resp);
+            } else {
+                resp.sendError(HttpServletResponse.SC_NOT_FOUND);
             }
         }
     }
@@ -649,7 +651,7 @@ public class AdminServlet extends HttpServlet {
                     "更新学生状态失败: " + e.getMessage());
         }
     }
-
+    
     /**
      * 处理获取单个学生详情的请求
      */
@@ -678,7 +680,7 @@ public class AdminServlet extends HttpServlet {
                     "获取学生详情失败: " + e.getMessage());
         }
     }
-
+    
     /**
      * 处理学生搜索请求
      */
@@ -710,6 +712,52 @@ public class AdminServlet extends HttpServlet {
             LOGGER.log(Level.SEVERE, "搜索学生失败", e);
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
                     "搜索学生失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 处理创建新学生
+     */
+    private void handleCreateStudent(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        HttpSession session = req.getSession(false);
+        Administrator currentAdmin = (Administrator) session.getAttribute("admin");
+
+        if (!currentAdmin.isSuperAdmin() && !currentAdmin.getRole().equals("STUDENT_ADMIN")) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "权限不足，只有超级管理员或学生管理员可执行此操作");
+            return;
+        }
+        
+        try {
+            // 解析请求体中的学生信息
+            Student newStudent = GSON.fromJson(req.getReader(), Student.class);
+            
+            // 验证必要字段
+            if (newStudent.getStudentId() == null || newStudent.getStudentId().isEmpty() ||
+                newStudent.getName() == null || newStudent.getName().isEmpty() ||
+                newStudent.getPassword() == null || newStudent.getPassword().isEmpty()) {
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "学生信息不完整，学号、姓名和密码不能为空");
+                return;
+            }
+            
+            // 检查学号是否已存在
+            if (studentDAO.findById(newStudent.getStudentId()) != null) {
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_CONFLICT, "该学号已存在");
+                return;
+            }
+            
+            // 添加学生
+            boolean success = studentDAO.add(newStudent);
+            
+            if (success) {
+                // 创建成功返回结果，不返回密码
+                newStudent.setPassword(null);
+                ResponseUtil.sendSuccessResponse(resp, "学生创建成功", newStudent);
+            } else {
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "学生创建失败");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "创建学生失败", e);
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "创建学生失败：" + e.getMessage());
         }
     }
 } 

@@ -338,8 +338,8 @@ public class FriendshipServlet extends HttpServlet {
         
         if (success) {
             if (isFriend) {
-                LOGGER.log(Level.INFO, "删除好友成功: {0} -> {1}", new Object[]{studentId, friendId});
-                ResponseUtil.sendSuccessResponse(resp, "删除好友成功");
+            LOGGER.log(Level.INFO, "删除好友成功: {0} -> {1}", new Object[]{studentId, friendId});
+            ResponseUtil.sendSuccessResponse(resp, "删除好友成功");
             } else if (isPendingRequest) {
                 LOGGER.log(Level.INFO, "取消好友请求成功: {0} -> {1}", new Object[]{studentId, friendId});
                 ResponseUtil.sendSuccessResponse(resp, "取消好友请求成功");
@@ -426,8 +426,12 @@ public class FriendshipServlet extends HttpServlet {
             handleSearchStudents(req, resp);
         } else if (pathInfo.startsWith("/received")) {
             handleGetReceivedRequests(req, resp);
+        } else if (pathInfo.equals("/sent")) {
+            handleGetSentRequests(req, resp);
         } else if (pathInfo.startsWith("/recommendations")) {
             handleGetRecommendations(req, resp);
+        } else if (pathInfo.equals("/list")) {
+            handleGetFriends(req, resp);
         } else {
             resp.sendError(HttpServletResponse.SC_NOT_FOUND, "未找到对应的API路径");
         }
@@ -443,6 +447,8 @@ public class FriendshipServlet extends HttpServlet {
         }
         
         if (pathInfo.equals("/add")) {
+            handleAddFriend(req, resp);
+        } else if (pathInfo.equals("/sendRequest")) {
             handleAddFriend(req, resp);
         } else if (pathInfo.startsWith("/accept/")) {
             handleAcceptFriendRequest(req, resp);
@@ -464,15 +470,15 @@ public class FriendshipServlet extends HttpServlet {
         
         try {
             // 直接处理 /friendId 路径格式，不再要求 /delete/ 前缀
-            if (pathInfo.startsWith("/delete/")) {
-                handleDeleteFriend(req, resp);
+        if (pathInfo.startsWith("/delete/")) {
+            handleDeleteFriend(req, resp);
             } else if (pathInfo.startsWith("/")) { // 处理/friendId格式
                 // 从路径中提取好友ID
                 String friendId = pathInfo.substring(1);
                 req.setAttribute("friendId", friendId);
-                handleDeleteFriend(req, resp);
-            } else {
-                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "未找到请求的资源: DELETE " + pathInfo);
+            handleDeleteFriend(req, resp);
+        } else {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "未找到请求的资源: DELETE " + pathInfo);
             }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "处理DELETE请求时发生异常: " + pathInfo, e);
@@ -501,6 +507,30 @@ public class FriendshipServlet extends HttpServlet {
             System.out.println("[FriendshipServlet] 获取收到的好友请求异常: " + e.getMessage());
             e.printStackTrace();
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取收到的好友请求失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 处理获取已发送的好友请求
+     */
+    private void handleGetSentRequests(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        HttpSession session = req.getSession(false);
+        
+        if (session == null || session.getAttribute("student") == null) {
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "未登录");
+            return;
+        }
+        
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
+        
+        try {
+            List<Student> sentRequests = friendshipDao.findPendingRequestsByStudentId(studentId);
+            ResponseUtil.sendSuccessResponse(resp, "获取发送的好友请求成功", sentRequests);
+        } catch (Exception e) {
+            System.out.println("[FriendshipServlet] 获取发送的好友请求异常: " + e.getMessage());
+            e.printStackTrace();
+            ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取发送的好友请求失败: " + e.getMessage());
         }
     }
 

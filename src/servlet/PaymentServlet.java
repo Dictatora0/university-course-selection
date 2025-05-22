@@ -20,6 +20,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -33,6 +34,65 @@ public class PaymentServlet extends HttpServlet {
     private TransactionDAO transactionDAO = new TransactionDAO();
     private TransactionControlDao tcDao = new TransactionControlDao();
     private Gson gson = new Gson();
+
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        String pathInfo = request.getPathInfo();
+        if (pathInfo == null) {
+            pathInfo = "/";
+        }
+        
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("student") == null) {
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "未登录或会话已过期");
+            return;
+        }
+
+        Student sessionStudent = (Student) session.getAttribute("student");
+        String studentId = sessionStudent.getStudentId();
+        
+        if (pathInfo.equals("/transactions")) {
+            handleGetTransactions(studentId, response);
+        } else if (pathInfo.equals("/balance")) {
+            handleGetBalance(studentId, response);
+        } else {
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "不支持的操作: " + pathInfo);
+        }
+    }
+
+    /**
+     * 处理获取交易记录请求
+     */
+    private void handleGetTransactions(String studentId, HttpServletResponse response) throws IOException {
+        try {
+            List<Transaction> transactions = transactionDAO.findByStudentId(studentId);
+            ResponseUtil.sendSuccessResponse(response, "获取交易记录成功", transactions);
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "获取交易记录失败", e);
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取交易记录失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 处理获取余额请求
+     */
+    private void handleGetBalance(String studentId, HttpServletResponse response) throws IOException {
+        try {
+            Student student = studentDAO.findById(studentId);
+            if (student == null) {
+                ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "未找到学生信息");
+                return;
+            }
+            
+            JsonObject result = new JsonObject();
+            result.addProperty("balance", student.getBalance());
+            
+            ResponseUtil.sendSuccessResponse(response, "获取余额成功", result);
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "获取余额失败", e);
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取余额失败: " + e.getMessage());
+        }
+    }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -107,6 +167,9 @@ public class PaymentServlet extends HttpServlet {
                     String courseId = jsonData.get("courseId").getAsString();
                     String paymentDesc = jsonData.has("description") ? jsonData.get("description").getAsString() : "课程付费";
                     handlePayment(studentId, courseId, amount, paymentDesc, response, request);
+                    break;
+                case "/balance":
+                    handleGetBalance(studentId, response);
                     break;
                 default:
                     ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "不支持的操作: " + pathInfo);

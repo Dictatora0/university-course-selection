@@ -205,9 +205,11 @@ const API = {
                 const response = await fetch(`${API.baseUrl}/payment/deposit`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
+                        'Content-Type': 'application/json'
                     },
-                    body: `amount=${amount}`,
+                    body: JSON.stringify({
+                        amount: amount
+                    }),
                     credentials: 'include'
                 });
                 
@@ -228,9 +230,11 @@ const API = {
                 const response = await fetch(`${API.baseUrl}/payment/withdraw`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
+                        'Content-Type': 'application/json'
                     },
-                    body: `amount=${amount}`,
+                    body: JSON.stringify({
+                        amount: amount
+                    }),
                     credentials: 'include'
                 });
                 
@@ -251,9 +255,13 @@ const API = {
                 const response = await fetch(`${API.baseUrl}/payment/transfer`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
+                        'Content-Type': 'application/json'
                     },
-                    body: `toStudentId=${toStudentId}&amount=${amount}&description=${encodeURIComponent(description)}`,
+                    body: JSON.stringify({
+                        toStudentId: toStudentId,
+                        amount: amount,
+                        description: description
+                    }),
                     credentials: 'include'
                 });
                 
@@ -485,7 +493,50 @@ const API = {
                     throw new Error(errorData || '获取聊天记录失败');
                 }
                 
-                return await response.json();
+                const result = await response.json();
+                console.log("获取到的聊天记录原始数据:", result);
+                
+                // 处理不同的返回数据格式
+                let messages = [];
+                
+                if (Array.isArray(result)) {
+                    // 直接返回数组的情况
+                    messages = result;
+                } else if (result.data && Array.isArray(result.data)) {
+                    // 包含在data字段中的情况
+                    messages = result.data;
+                } else if (result.success && result.data && Array.isArray(result.data)) {
+                    // 标准API响应格式
+                    messages = result.data;
+                } else {
+                    console.warn("无法识别的消息数据格式:", result);
+                    // 尝试在对象中找到数组字段
+                    for (const key in result) {
+                        if (Array.isArray(result[key])) {
+                            console.log(`找到可能的消息数组字段: ${key}`);
+                            messages = result[key];
+                            break;
+                        }
+                    }
+                    
+                    if (messages.length === 0) {
+                        // 如果还是找不到，则返回空数组
+                        console.error("无法提取消息数据，返回空数组");
+                        return [];
+                    }
+                }
+                
+                // 规范化消息数据格式
+                return messages.map(msg => {
+                    return {
+                        messageId: msg.messageId || msg.message_id || msg.id || 0,
+                        fromStudentId: msg.fromStudentId || msg.from_student_id || msg.fromId || msg.from_id,
+                        toStudentId: msg.toStudentId || msg.to_student_id || msg.toId || msg.to_id,
+                        content: msg.content || msg.message || '',
+                        sendTime: msg.sendTime || msg.send_time || msg.time || msg.createTime || msg.create_time || new Date().toISOString(),
+                        read: msg.read || msg.isRead || msg.is_read || false
+                    };
+                });
             } catch (error) {
                 console.error('获取聊天记录失败:', error);
                 throw error;
