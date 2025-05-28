@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function setupEventListeners() {
         // 主导航选项卡点击事件
-        document.querySelectorAll('.sidebar .nav-link').forEach(function(navLink) {
+        document.querySelectorAll('.main-nav-link').forEach(function(navLink) {
             navLink.addEventListener('click', function(e) {
                 e.preventDefault();
                 const targetTabId = this.getAttribute('data-tab');
@@ -406,9 +406,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function showTab(tabId) {
         console.log(`显示Tab: ${tabId}`);
-        // 修正Tab ID映射关系
-        if (tabId === 'wallet') tabId = 'payment'; // wallet -> payment
-        // 注意：不要将my-courses映射为myCourses，保留原始ID
+        
+        // 检查Tab元素是否存在
+        let tabElement = document.getElementById(tabId);
+        if (!tabElement) {
+            console.warn(`找不到ID为 ${tabId} 的Tab元素，尝试映射或查找替代元素...`);
+            
+            // 尝试查找替代元素
+            if (tabId === 'myCourses' && document.getElementById('my-courses')) {
+                console.log("映射 myCourses -> my-courses");
+                tabId = 'my-courses';
+                tabElement = document.getElementById('my-courses');
+            } else if (tabId === 'wallet' && document.getElementById('payment')) {
+                console.log("映射 wallet -> payment");
+                tabId = 'payment';
+                tabElement = document.getElementById('payment');
+            } else {
+                console.error(`未找到ID为 ${tabId} 的Tab元素，无法显示`);
+                return;
+            }
+        }
         
         // 隐藏所有标签页
         document.querySelectorAll('.tab-content').forEach(tab => {
@@ -416,60 +433,124 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // 显示选中的标签页
-        const targetTab = document.getElementById(tabId);
-        if (targetTab) {
-            targetTab.classList.add('active');
+        tabElement.classList.add('active');
+        
+        // 根据选中的标签页执行特定的加载逻辑
+        if (tabId === 'courses') {
+            loadAllCourses();
+            loadEnrolledCourses();
+            loadDepartmentsForFilter();
+        } else if (tabId === 'friends') {
+            loadFriends();
+            loadFriendRecommendations();
+        } else if (tabId === 'messages') {
+            // 加载消息相关内容
+            loadRecentContacts();
             
-            // 根据选中的标签页执行特定的加载逻辑
-            if (tabId === 'courses') {
-                loadAllCourses();
-                loadEnrolledCourses();
-                loadDepartmentsForFilter();
-            } else if (tabId === 'friends') {
-                loadFriends();
-                loadFriendRecommendations();
-            } else if (tabId === 'messages') {
-                // 加载消息相关内容
-                loadRecentContacts();
-                
-                // 默认显示一条提示信息
-                const chatContainer = document.getElementById('mainChatContainer');
-                if (chatContainer) {
-                    chatContainer.innerHTML = `
-                        <div class="d-flex flex-column justify-content-center align-items-center h-100 text-muted">
-                            <i class="bi bi-chat-dots fs-1 mb-3"></i>
-                            <p>与 ... 聊天中</p>
-                            <p class="small">选择一个联系人开始聊天</p>
-                        </div>
-                    `;
-                }
-                
-                // 启动消息轮询
-                startMessagePolling();
-            } else if (tabId === 'payment') {
-                loadBalance();
-                loadTransactions();
-            } else if (tabId === 'profile') {
-                loadProfileInfo();
-            } else if (tabId === 'my-courses') {
-                loadEnrolledCourses();
+            // 默认显示一条提示信息
+            const chatContainer = document.getElementById('mainChatContainer');
+            if (chatContainer) {
+                chatContainer.innerHTML = `
+                    <div class="d-flex flex-column justify-content-center align-items-center h-100 text-muted">
+                        <i class="bi bi-chat-dots fs-1 mb-3"></i>
+                        <p>选择一个联系人开始聊天</p>
+                        <p class="small">或前往好友列表添加好友</p>
+                    </div>
+                `;
             }
             
-            // 更新导航链接的 active 状态
-            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
-                const linkTabId = link.getAttribute('data-tab');
-                if (linkTabId === tabId) {
-                    link.classList.add('active');
-                } else {
-                    link.classList.remove('active');
-                }
+            // 启动消息轮询
+            startMessagePolling();
+        } else if (tabId === 'payment') {
+            // 清空之前的数据，显示加载中状态
+            const balanceEl = document.getElementById('balanceAmount');
+            const transactionListEl = document.getElementById('transactionList');
+            
+            if (balanceEl) balanceEl.textContent = '加载中...';
+            if (transactionListEl) transactionListEl.innerHTML = '<li class="list-group-item text-center">加载中...</li>';
+            
+            // 加载钱包数据
+            loadBalance();
+            loadTransactions();
+            
+            // 确保钱包相关表单被隐藏
+            console.log("确保充值和提现表单被隐藏");
+            try {
+                // 使用延时确保DOM元素已加载
+                setTimeout(() => {
+                    const depositForm = document.getElementById('depositForm');
+                    const withdrawForm = document.getElementById('withdrawForm');
+                    
+                    if (depositForm) depositForm.style.display = 'none';
+                    if (withdrawForm) withdrawForm.style.display = 'none';
+                    
+                    console.log("充值表单状态:", depositForm ? depositForm.style.display : "元素不存在");
+                    console.log("提现表单状态:", withdrawForm ? withdrawForm.style.display : "元素不存在");
+                }, 100);
+            } catch (error) {
+                console.error("隐藏钱包表单时出错:", error);
+            }
+        } else if (tabId === 'profile') {
+            // 先清空个人信息数据，显示加载中状态
+            const profileElements = [
+                'profileStudentId', 'profileName', 'profileDeptName', 'profileBirthDate',
+                'profileIdCard', 'profileAddress', 'profileEmail', 'profilePhone',
+                'profileBalance', 'profileNameLarge', 'profileDeptNameLarge'
+            ];
+            
+            profileElements.forEach(id => {
+                const element = document.getElementById(id);
+                if(element) element.textContent = '加载中...';
             });
             
-            // 保存当前选中的标签页到 localStorage
-            localStorage.setItem('currentTab', tabId);
-        } else {
-            console.error(`未找到ID为 ${tabId} 的Tab元素`);
+            // 加载个人信息数据
+            loadProfileInfo();
+            
+            // 确保基本信息选项卡是激活的
+            const basicInfoTab = document.querySelector('#profileTabs a[href="#basicInfo"]');
+            const accountSettingsTab = document.querySelector('#profileTabs a[href="#accountSettings"]');
+            const basicInfoPane = document.getElementById('basicInfo');
+            const accountSettingsPane = document.getElementById('accountSettings');
+            
+            if (basicInfoTab && accountSettingsTab && basicInfoPane && accountSettingsPane) {
+                basicInfoTab.classList.add('active');
+                accountSettingsTab.classList.remove('active');
+                basicInfoPane.classList.add('show', 'active');
+                accountSettingsPane.classList.remove('show', 'active');
+                
+                console.log("个人信息标签页已激活，基本信息标签页已选中");
+            } else {
+                console.error("无法找到个人信息相关元素：", {
+                    basicInfoTab,
+                    accountSettingsTab,
+                    basicInfoPane,
+                    accountSettingsPane
+                });
+            }
+            
+            // 确保查看模式而非编辑模式
+            const profileInfoView = document.getElementById('profileInfoView');
+            const profileInfoEdit = document.getElementById('profileInfoEdit');
+            if (profileInfoView && profileInfoEdit) {
+                profileInfoView.style.display = 'block';
+                profileInfoEdit.style.display = 'none';
+            }
+        } else if (tabId === 'my-courses') {
+            loadEnrolledCourses();
         }
+        
+        // 更新导航链接的 active 状态
+        document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+            const linkTabId = link.getAttribute('data-tab');
+            if (linkTabId === tabId) {
+                link.classList.add('active');
+            } else {
+                link.classList.remove('active');
+            }
+        });
+        
+        // 保存当前选中的标签页到 localStorage
+        localStorage.setItem('currentTab', tabId);
     }
     
     async function loadMainPageData() {
@@ -2920,33 +3001,3 @@ document.addEventListener('DOMContentLoaded', function() {
     window.loadProfileInfo = loadProfileInfo;
     window.checkNewMessages = checkNewMessages;
 }); 
-
-// 在文件末尾添加此代码，确保暴露关键函数到全局作用域
-window.showTab = showTab; // 使showTab函数全局可用 
-
-// 确保页面加载完成后执行初始化
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('页面加载完成，初始化...');
-    
-    // 初始化UI
-    initUI();
-    
-    // 设置事件监听器
-    setupEventListeners();
-    
-    // 加载上次选中的标签页（如果有）
-    let lastTab = localStorage.getItem('currentTab');
-    
-    // 修正可能存在的旧版本存储的myCourses值
-    if (lastTab === 'myCourses') {
-        lastTab = 'my-courses';
-    }
-    
-    if (lastTab) {
-        console.log('加载上次选中的标签页:', lastTab);
-        showTab(lastTab);
-    } else {
-        console.log('没有找到上次选中的标签页，显示默认标签页');
-        showTab('dashboardMain');
-    }
-});
