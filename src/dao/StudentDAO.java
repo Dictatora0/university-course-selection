@@ -38,13 +38,6 @@ public class StudentDAO {
                     if (hasColumn(rs, "balance")) {
                         student.setBalance(rs.getDouble("balance"));
                     }
-                    // 获取email和phone字段
-                    if (hasColumn(rs, "email")) {
-                        student.setEmail(rs.getString("email"));
-                    }
-                    if (hasColumn(rs, "phone")) {
-                        student.setPhone(rs.getString("phone"));
-                    }
                     return student;
                 }
             }
@@ -281,7 +274,7 @@ public class StudentDAO {
             System.out.println("[StudentDAO.update] 开始更新学生信息，学号：" + student.getStudentId());
             conn = DBConnection.getConnection();
             // 构建基础的UPDATE语句，包含所有可更新的字段
-            StringBuilder sqlBuilder = new StringBuilder("UPDATE Student SET name = ?, birth_date = ?, id_card = ?, address = ?, dept_id = ?, email = ?, phone = ? ");
+            StringBuilder sqlBuilder = new StringBuilder("UPDATE Student SET name = ?, birth_date = ?, id_card = ?, address = ?, dept_id = ? ");
             
             // 检查是否需要更新密码
             boolean updatePassword = student.getPassword() != null && !student.getPassword().isEmpty();
@@ -310,12 +303,6 @@ public class StudentDAO {
             
             pstmt.setString(parameterIndex++, student.getDeptId());
             System.out.println("[StudentDAO.update] 设置dept_id参数: " + student.getDeptId());
-            
-            pstmt.setString(parameterIndex++, student.getEmail());
-            System.out.println("[StudentDAO.update] 设置email参数: " + student.getEmail());
-            
-            pstmt.setString(parameterIndex++, student.getPhone());
-            System.out.println("[StudentDAO.update] 设置phone参数: " + student.getPhone());
             
             if (updatePassword) {
                 String hashedPassword = PasswordUtil.hashPassword(student.getPassword());
@@ -411,16 +398,6 @@ public class StudentDAO {
             student.setAccountStatus(rs.getBoolean("account_status"));
         } else {
             student.setAccountStatus(true); // 默认为启用状态
-        }
-        
-        // 检查并设置email字段
-        if (hasColumn(rs, "email")) {
-            student.setEmail(rs.getString("email"));
-        }
-        
-        // 检查并设置phone字段
-        if (hasColumn(rs, "phone")) {
-            student.setPhone(rs.getString("phone"));
         }
         
         return student;

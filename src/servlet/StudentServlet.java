@@ -396,19 +396,8 @@ public class StudentServlet extends BaseServlet {
                 updated = true;
             }
             
-            // 处理email字段
-            if (jsonObject.has("email") && !jsonObject.get("email").isJsonNull()) {
-                String email = jsonObject.get("email").getAsString();
-                student.setEmail(email);
-                updated = true;
-            }
-            
-            // 处理phone字段
-            if (jsonObject.has("phone") && !jsonObject.get("phone").isJsonNull()) {
-                String phone = jsonObject.get("phone").getAsString();
-                student.setPhone(phone);
-                updated = true;
-            }
+            // 注意：email 和 phone 字段在数据库中不存在，我们将它们从 Student 对象设置中移除
+            // 不再处理 email 和 phone 字段
             
             if (updated) {
                 // 更新数据库
@@ -426,8 +415,6 @@ public class StudentServlet extends BaseServlet {
                     responseData.put("idCard", student.getIdCard());
                     responseData.put("address", student.getAddress());
                     responseData.put("balance", student.getBalance());
-                    responseData.put("email", student.getEmail());
-                    responseData.put("phone", student.getPhone());
                     
                     ResponseUtil.sendSuccess(resp, responseData);
                 } else {
