@@ -19,6 +19,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -389,9 +390,42 @@ public class AdminServlet extends HttpServlet {
      */
     private void handleLogin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         try {
-            JsonObject requestBody = GSON.fromJson(req.getReader(), JsonObject.class);
-            String adminId = requestBody.get("adminId").getAsString();
+            // 读取请求体内容并打印
+            StringBuilder requestBodyBuilder = new StringBuilder();
+            BufferedReader reader = req.getReader();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                requestBodyBuilder.append(line);
+            }
+            String requestBodyStr = requestBodyBuilder.toString();
+            System.out.println("[AdminServlet.handleLogin] 原始请求体: " + requestBodyStr);
+            
+            JsonObject requestBody = GSON.fromJson(requestBodyStr, JsonObject.class);
+            System.out.println("[AdminServlet.handleLogin] 解析后的JSON对象: " + requestBody);
+            
+            String adminId;
+            
+            // 尝试获取adminId或admin_id
+            if (requestBody.has("adminId")) {
+                adminId = requestBody.get("adminId").getAsString();
+                System.out.println("[AdminServlet.handleLogin] 使用adminId参数: " + adminId);
+            } else if (requestBody.has("admin_id")) {
+                adminId = requestBody.get("admin_id").getAsString();
+                System.out.println("[AdminServlet.handleLogin] 使用admin_id参数: " + adminId);
+            } else {
+                System.out.println("[AdminServlet.handleLogin] 未找到adminId或admin_id参数");
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "缺少管理员ID参数");
+                return;
+            }
+            
+            if (!requestBody.has("password")) {
+                System.out.println("[AdminServlet.handleLogin] 未找到password参数");
+                ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "缺少密码参数");
+                return;
+            }
+            
             String password = requestBody.get("password").getAsString();
+            System.out.println("[AdminServlet.handleLogin] 尝试登录，管理员ID: " + adminId);
 
             Administrator admin = administratorDao.login(adminId, password);
 
@@ -406,6 +440,7 @@ public class AdminServlet extends HttpServlet {
             }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "管理员登录失败", e);
+            e.printStackTrace();
             ResponseUtil.sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "登录失败：" + e.getMessage());
         }
     }

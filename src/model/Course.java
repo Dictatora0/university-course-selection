@@ -13,6 +13,7 @@ public class Course {
     private String deptName;   // 院系名称
     private int capacity;      // 课程容量
     private int enrollmentCount; // 已选人数
+    private String description; // 课程描述
     
     public Course() {
     }
@@ -81,6 +82,14 @@ public class Course {
         this.enrollmentCount = enrollmentCount;
     }
     
+    public String getDescription() {
+        return description;
+    }
+    
+    public void setDescription(String description) {
+        this.description = description;
+    }
+    
     @Override
     public String toString() {
         return "Course{" +
@@ -91,6 +100,7 @@ public class Course {
                 ", deptName='" + deptName + '\'' +
                 ", capacity=" + capacity +
                 ", enrollmentCount=" + enrollmentCount +
+                ", description='" + description + '\'' +
                 '}';
     }
 } 

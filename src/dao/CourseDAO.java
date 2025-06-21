@@ -84,6 +84,47 @@ public class CourseDAO {
     }
     
     /**
+     * 根据ID查询课程（使用传入的数据库连接）
+     * @param courseId 课程ID
+     * @param conn 数据库连接
+     * @return 如果找到则返回Course对象，否则返回null
+     * @throws SQLException 如果数据库操作失败
+     */
+    public Course findById(String courseId, Connection conn) throws SQLException {
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        Course course = null;
+        
+        try {
+            String sql = "SELECT c.*, d.dept_name, " +
+                    "(SELECT COUNT(*) FROM Enrollment e WHERE e.course_id = c.course_id) AS current_enrollment " +
+                    "FROM Course c LEFT JOIN Department d ON c.dept_id = d.dept_id " +
+                    "WHERE c.course_id = ?";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setString(1, courseId);
+            rs = pstmt.executeQuery();
+            
+            if (rs.next()) {
+                course = new Course();
+                course.setCourseId(rs.getString("course_id"));
+                course.setCourseName(rs.getString("course_name"));
+                course.setDeptId(rs.getString("dept_id"));
+                course.setDeptName(rs.getString("dept_name"));
+                course.setCredit(rs.getBigDecimal("credit"));
+                course.setDescription(rs.getString("description"));
+                course.setCapacity(rs.getInt("capacity"));
+                course.setEnrollmentCount(rs.getInt("current_enrollment"));
+            }
+        } finally {
+            if (rs != null) try { rs.close(); } catch (SQLException e) { e.printStackTrace(); }
+            if (pstmt != null) try { pstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
+            // 不关闭连接，由调用者负责
+        }
+        
+        return course;
+    }
+    
+    /**
      * 根据院系ID查询课程
      */
     public List<Course> findByDeptId(String deptId) {

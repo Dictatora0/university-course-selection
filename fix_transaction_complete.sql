@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS TransactionIdSequence (
 
 -- 创建一个存储过程，用于生成唯一交易ID
 DELIMITER //
-CREATE PROCEDURE GenerateTransactionId(OUT new_id VARCHAR(50))
+DROP PROCEDURE IF EXISTS GenerateTransactionId //
+CREATE PROCEDURE GenerateTransactionId(INOUT new_id VARCHAR(50))
 BEGIN
     INSERT INTO TransactionIdSequence (created_at) VALUES (NOW());
     SET new_id = CONCAT('TRX', LPAD(LAST_INSERT_ID(), 10, '0'));

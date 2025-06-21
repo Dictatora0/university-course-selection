@@ -14,8 +14,6 @@ public class TransactionControl {
     private boolean enabled;                  // 是否启用
     private Date lastUpdated;                 // 最后更新时间
     private String updatedBy;                 // 更新人ID
-    private int frequentTransferTimeWindow;   // 频繁转账检测时间窗口（分钟）
-    private int frequentTransferThreshold;    // 频繁转账检测阈值（次数）
     
     // 临时属性，非数据库字段
     private String updaterName;               // 更新人姓名
@@ -28,8 +26,6 @@ public class TransactionControl {
         this.dailyLimit = dailyLimit;
         this.maxDailyTransactions = maxDailyTransactions;
         this.enabled = true;
-        this.frequentTransferTimeWindow = 30; // 默认30分钟
-        this.frequentTransferThreshold = 3;   // 默认3次
     }
     
     /**
@@ -61,16 +57,6 @@ public class TransactionControl {
     public boolean isExceedDailyCount(int dailyCount) {
         if (!enabled) return false;
         return dailyCount >= maxDailyTransactions;
-    }
-    
-    /**
-     * 检查是否为频繁转账
-     * @param recentCount 时间窗口内的转账次数
-     * @return 是否为频繁转账
-     */
-    public boolean isFrequentTransfer(int recentCount) {
-        if (!enabled) return false;
-        return recentCount >= frequentTransferThreshold;
     }
     
     // Getters and Setters
@@ -136,21 +122,5 @@ public class TransactionControl {
     
     public void setUpdaterName(String updaterName) {
         this.updaterName = updaterName;
-    }
-    
-    public int getFrequentTransferTimeWindow() {
-        return frequentTransferTimeWindow;
-    }
-    
-    public void setFrequentTransferTimeWindow(int frequentTransferTimeWindow) {
-        this.frequentTransferTimeWindow = frequentTransferTimeWindow;
-    }
-    
-    public int getFrequentTransferThreshold() {
-        return frequentTransferThreshold;
-    }
-    
-    public void setFrequentTransferThreshold(int frequentTransferThreshold) {
-        this.frequentTransferThreshold = frequentTransferThreshold;
     }
 } 

@@ -53,10 +53,8 @@ public class TransactionControlDao {
         disableAllControls();
         
         String sql = "INSERT INTO TransactionControl " +
-                     "(max_single_amount, daily_limit, max_daily_transactions, " +
-                     "frequent_transfer_time_window, frequent_transfer_threshold, " +
-                     "enabled, last_updated, updated_by) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)";
+                     "(max_single_amount, daily_limit, max_daily_transactions, enabled, last_updated, updated_by) " +
+                     "VALUES (?, ?, ?, ?, NOW(), ?)";
         
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -64,10 +62,8 @@ public class TransactionControlDao {
             stmt.setBigDecimal(1, control.getMaxSingleAmount());
             stmt.setBigDecimal(2, control.getDailyLimit());
             stmt.setInt(3, control.getMaxDailyTransactions());
-            stmt.setInt(4, control.getFrequentTransferTimeWindow());
-            stmt.setInt(5, control.getFrequentTransferThreshold());
-            stmt.setBoolean(6, control.isEnabled());
-            stmt.setString(7, adminId);
+            stmt.setBoolean(4, control.isEnabled());
+            stmt.setString(5, adminId);
             
             int rowsAffected = stmt.executeUpdate();
             if (rowsAffected > 0) {
@@ -94,7 +90,6 @@ public class TransactionControlDao {
     public boolean updateControl(TransactionControl control, String adminId) {
         String sql = "UPDATE TransactionControl SET " +
                      "max_single_amount = ?, daily_limit = ?, max_daily_transactions = ?, " +
-                     "frequent_transfer_time_window = ?, frequent_transfer_threshold = ?, " +
                      "enabled = ?, last_updated = NOW(), updated_by = ? " +
                      "WHERE control_id = ?";
         
@@ -104,11 +99,9 @@ public class TransactionControlDao {
             stmt.setBigDecimal(1, control.getMaxSingleAmount());
             stmt.setBigDecimal(2, control.getDailyLimit());
             stmt.setInt(3, control.getMaxDailyTransactions());
-            stmt.setInt(4, control.getFrequentTransferTimeWindow());
-            stmt.setInt(5, control.getFrequentTransferThreshold());
-            stmt.setBoolean(6, control.isEnabled());
-            stmt.setString(7, adminId);
-            stmt.setInt(8, control.getControlId());
+            stmt.setBoolean(4, control.isEnabled());
+            stmt.setString(5, adminId);
+            stmt.setInt(6, control.getControlId());
             
             int rowsAffected = stmt.executeUpdate();
             return rowsAffected > 0;
@@ -235,8 +228,6 @@ public class TransactionControlDao {
         control.setMaxSingleAmount(rs.getBigDecimal("max_single_amount"));
         control.setDailyLimit(rs.getBigDecimal("daily_limit"));
         control.setMaxDailyTransactions(rs.getInt("max_daily_transactions"));
-        control.setFrequentTransferTimeWindow(rs.getInt("frequent_transfer_time_window"));
-        control.setFrequentTransferThreshold(rs.getInt("frequent_transfer_threshold"));
         control.setEnabled(rs.getBoolean("enabled"));
         control.setLastUpdated(rs.getTimestamp("last_updated"));
         control.setUpdatedBy(rs.getString("updated_by"));
@@ -257,16 +248,11 @@ public class TransactionControlDao {
         
         // 创建默认设置
         TransactionControl defaultControl = new TransactionControl(
-                new BigDecimal("1000.00"),  // 单笔最大金额1000元
-                new BigDecimal("5000.00"),  // 日累计限额5000元
-                20                          // 每日最大交易次数20次
+                new BigDecimal("1000.00"),  // 单笔最大金额
+                new BigDecimal("5000.00"),  // 日累计限额
+                10                         // 日最大交易次数
         );
         
-        // 设置频繁转账预警参数
-        defaultControl.setFrequentTransferTimeWindow(30);  // 30分钟内
-        defaultControl.setFrequentTransferThreshold(3);    // 3次及以上转账视为频繁
-        
-        // 添加到数据库
         int controlId = addControl(defaultControl, adminId);
         return controlId > 0;
     }

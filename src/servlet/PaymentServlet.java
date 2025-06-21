@@ -5,9 +5,11 @@ import com.google.gson.JsonObject;
 import dao.StudentDAO;
 import dao.TransactionDAO;
 import dao.TransactionControlDao;
+import dao.CourseDAO;
 import model.Student;
 import model.Transaction;
 import model.TransactionControl;
+import model.Course;
 import util.ResponseUtil;
 
 import javax.servlet.ServletException;
@@ -35,6 +37,7 @@ public class PaymentServlet extends HttpServlet {
     private StudentDAO studentDAO = new StudentDAO();
     private TransactionDAO transactionDAO = new TransactionDAO();
     private TransactionControlDao tcDao = new TransactionControlDao();
+    private CourseDAO courseDAO = new CourseDAO();
     private Gson gson = new Gson();
 
     @Override
@@ -226,7 +229,7 @@ public class PaymentServlet extends HttpServlet {
             transaction.setDescription("账户充值");
             transaction.setStatus(true); // 设置交易状态为成功
             
-            if (!transactionDAO.add(transaction)) {
+            if (!transactionDAO.add(transaction, conn)) {
                 throw new SQLException("创建充值交易记录失败");
             }
             
@@ -321,7 +324,7 @@ public class PaymentServlet extends HttpServlet {
             transaction.setDescription("账户提现");
             transaction.setStatus(true); // 设置交易状态为成功
             
-            if (!transactionDAO.add(transaction)) {
+            if (!transactionDAO.add(transaction, conn)) {
                 throw new SQLException("创建提现交易记录失败");
             }
             
@@ -409,6 +412,11 @@ public class PaymentServlet extends HttpServlet {
             return;
         }
         
+        if (fromStudentId.equals(toStudentId)) {
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "不能给自己转账");
+            return;
+        }
+
         // 检查余额是否足够
         if (fromStudent.getBalance() < amount.doubleValue()) {
             ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "余额不足，当前余额: " + fromStudent.getBalance());
@@ -446,26 +454,6 @@ public class PaymentServlet extends HttpServlet {
                     ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, 
                             "超过今日最大交易次数限制 " + control.getMaxDailyTransactions() + "次");
                     return;
-                }
-                
-                // 检查频繁转账 - 在指定时间窗口内进行多次转账
-                int recentTransfers = txDao.getTransferCountInTimeWindow(fromStudentId, control.getFrequentTransferTimeWindow());
-                if (control.isFrequentTransfer(recentTransfers)) {
-                    // 这里我们不阻止转账，而是返回一个包含警告信息的成功响应
-                    JsonObject jsonResponse = new JsonObject();
-                    jsonResponse.addProperty("success", true);
-                    jsonResponse.addProperty("warning", true);
-                    jsonResponse.addProperty("message", "检测到您在短时间内进行了多次转账，请确认这些操作是您本人进行的");
-                    jsonResponse.addProperty("warningType", "FREQUENT_TRANSFER");
-                    jsonResponse.addProperty("details", "在过去" + control.getFrequentTransferTimeWindow() + 
-                            "分钟内已进行" + recentTransfers + "次转账操作");
-                    
-                    // 继续处理转账...但记录警告信息
-                    logger.log(Level.WARNING, "检测到频繁转账行为: 学生ID=" + fromStudentId + 
-                            ", 时间窗口=" + control.getFrequentTransferTimeWindow() + "分钟, 转账次数=" + recentTransfers);
-                    
-                    // 设置标志以便在转账完成后返回带有警告的响应
-                    request.setAttribute("TRANSFER_WARNING_RESPONSE", jsonResponse.toString());
                 }
             }
         } catch (Exception e) {
@@ -528,7 +516,7 @@ public class PaymentServlet extends HttpServlet {
             outTransaction.setType(Transaction.TransactionType.TRANSFER);
             outTransaction.setDescription("转账给 " + toStudent.getName() + "(" + toStudentId + ")" + (description != null ? ": " + description : ""));
             
-            if (!transactionDAO.add(outTransaction)) {
+            if (!transactionDAO.add(outTransaction, conn)) {
                 throw new SQLException("创建转出交易记录失败");
             }
             
@@ -542,7 +530,7 @@ public class PaymentServlet extends HttpServlet {
             inTransaction.setType(Transaction.TransactionType.TRANSFER);
             inTransaction.setDescription("收到来自 " + fromStudent.getName() + "(" + fromStudentId + ") 的转账" + (description != null ? ": " + description : ""));
             
-            if (!transactionDAO.add(inTransaction)) {
+            if (!transactionDAO.add(inTransaction, conn)) {
                 throw new SQLException("创建转入交易记录失败");
             }
             
@@ -612,34 +600,98 @@ public class PaymentServlet extends HttpServlet {
             return;
         }
 
-        // 检查余额是否足够
-        if (student.getBalance() < amount.doubleValue()) {
-            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "余额不足，当前余额: " + student.getBalance());
-            return;
-        }
+        // 使用事务管理更新余额和添加交易记录
+        Connection conn = null;
+        Course course = null;
+        boolean success = false;
         
-        // 更新余额
-        double newBalance = student.getBalance() - amount.doubleValue();
-        boolean success = studentDAO.updateBalance(studentId, newBalance);
-        
-        if (success) {
-            // 记录交易
+        try {
+            conn = util.DBConnection.getConnection();
+            conn.setAutoCommit(false);
+            
+            // 查询课程信息（使用共享的数据库连接）
+            course = courseDAO.findById(courseId, conn);
+            if (course == null) {
+                throw new SQLException("未找到课程信息：" + courseId);
+            }
+            
+            // 检查余额是否足够
+            if (student.getBalance() < amount.doubleValue()) {
+                throw new SQLException("余额不足，当前余额: " + student.getBalance());
+            }
+            
+            // 计算新余额
+            double newBalance = student.getBalance() - amount.doubleValue();
+            
+            logTransactionDetails("课程支付操作", 
+                "学生: " + student.getName() + "(" + studentId + ")", 
+                "课程: " + course.getCourseName() + "(" + courseId + ")",
+                "支付金额: " + amount,
+                "原余额: " + student.getBalance(),
+                "新余额: " + newBalance);
+            
+            // 使用StudentDAO更新余额
+            if (!studentDAO.updateBalance(studentId, newBalance)) {
+                throw new SQLException("更新余额失败");
+            }
+            
+            logTransactionDetails("余额更新", "课程支付余额更新成功", "新余额: " + newBalance);
+            
+            // 记录支付交易
             Transaction transaction = new Transaction();
             transaction.setStudentId(studentId);
-            transaction.setAmount(amount.negate()); // 负数表示支出
-            transaction.setType(Transaction.TransactionType.EXPENSE);
-            transaction.setDescription("支付课程 " + courseId + ": " + description);
+            transaction.setAmount(amount.negate()); // 使用负数表示支出
+            transaction.setType(Transaction.TransactionType.PAYMENT);
+            transaction.setRelatedStudentId(courseId); // 关联课程ID
+            transaction.setDescription("支付课程: " + course.getCourseName() + " - " + description);
+            transaction.setStatus(true); // 设置交易状态为成功
             
-            transactionDAO.add(transaction);
+            if (!transactionDAO.add(transaction, conn)) {
+                throw new SQLException("创建支付交易记录失败");
+            }
+            
+            logTransactionDetails("交易记录", "支付交易记录创建成功", "ID: " + transaction.getTransactionId());
+            
+            // TODO: 添加选课逻辑
+            // 在这里调用EnrollmentDAO添加选课记录
+            
+            // 提交事务
+            conn.commit();
+            success = true;
             
             // 更新session中的学生对象
             student.setBalance(newBalance);
             request.getSession().setAttribute("student", student);
             
-            // 返回成功信息
-            ResponseUtil.sendSuccessResponse(response, "支付成功，已支付 " + amount + " 元");
-        } else {
-            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "支付失败");
+        } catch (SQLException e) {
+            // 发生异常时回滚事务
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                    logTransactionDetails("支付错误", "发生异常，事务已回滚", "错误: " + e.getMessage());
+                } catch (SQLException ex) {
+                    logger.log(Level.SEVERE, "回滚事务失败", ex);
+                }
+            }
+            
+            // 记录错误并向客户端返回错误信息
+            logger.log(Level.SEVERE, "支付过程中发生错误", e);
+            ResponseUtil.sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
+                    "支付失败: " + e.getMessage());
+        } finally {
+            // 无论成功或失败，最后都要关闭连接并恢复自动提交
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                } catch (SQLException ex) {
+                    logger.log(Level.SEVERE, "关闭数据库连接失败", ex);
+                }
+            }
+        }
+        
+        if (success) {
+            ResponseUtil.sendSuccessResponse(response, "课程 " + course.getCourseName() + " (课程ID: " + courseId + ") 选课并支付成功");
         }
     }
     

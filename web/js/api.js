@@ -4,9 +4,13 @@ const API = {
     
     // 通用请求方法
     async request(endpoint, method = 'GET', data = null) {
-        // 添加上下文路径
-        const contextPath = window.location.pathname.split('/')[1] ? '/' + window.location.pathname.split('/')[1] : '';
-        const url = contextPath + endpoint;
+        // 确保endpoint以/开头
+        if (!endpoint.startsWith('/')) {
+            endpoint = '/' + endpoint;
+        }
+        
+        // 构建完整URL
+        const url = this.baseUrl + endpoint;
         
         console.log(`[API] 发送请求: ${method} ${url}`);
         if (data) {
@@ -242,7 +246,6 @@ const API = {
                 throw error;
             }
         },
-        
         withdraw: async function(amount) {
             try {
                 console.log(`[API.payment.withdraw] 开始提现, 金额: ${amount}`);
@@ -285,7 +288,6 @@ const API = {
                 throw error;
             }
         },
-        
         transfer: async function(toStudentId, amount, description = '') {
             try {
                 console.log(`[API.payment.transfer] 开始转账, 接收方: ${toStudentId}, 金额: ${amount}, 描述: ${description}`);

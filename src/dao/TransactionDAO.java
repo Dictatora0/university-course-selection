@@ -29,6 +29,8 @@ public class TransactionDAO {
             
             // 首先生成交易ID
             cstmt = conn.prepareCall("{CALL GenerateTransactionId(?)}");
+            String tempId = "";
+            cstmt.setString(1, tempId);
             cstmt.registerOutParameter(1, Types.VARCHAR);
             cstmt.execute();
             String transactionId = cstmt.getString(1);
@@ -75,6 +77,62 @@ public class TransactionDAO {
                     conn.close(); 
                 } 
             } catch (SQLException e) { e.printStackTrace(); }
+        }
+        return success;
+    }
+
+    /**
+     * 添加一个新的交易记录到数据库（使用外部传入的数据库连接）。
+     * 交易对象应已设置 studentId, type, amount, 和 description。
+     * transactionDate 如果未提供，则自动设置。
+     * 使用传入的数据库连接，由调用者管理事务和连接的关闭。
+     * 
+     * @param transaction 要添加的交易对象
+     * @param conn 数据库连接
+     * @return 操作是否成功
+     * @throws SQLException 如果数据库操作出错
+     */
+    public boolean add(Transaction transaction, Connection conn) throws SQLException {
+        PreparedStatement pstmt = null;
+        CallableStatement cstmt = null;
+        boolean success = false;
+
+        try {
+            // 首先生成交易ID
+            cstmt = conn.prepareCall("{CALL GenerateTransactionId(?)}");
+            String tempId = "";
+            cstmt.setString(1, tempId);
+            cstmt.registerOutParameter(1, Types.VARCHAR);
+            cstmt.execute();
+            String transactionId = cstmt.getString(1);
+            
+            if (transactionId == null || transactionId.isEmpty()) {
+                // 如果存储过程失败，使用UUID作为备选方案
+                transactionId = "TRX" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+            }
+            
+            // 插入交易记录
+            String sql = "INSERT INTO Transaction (transaction_id, student_id, related_student_id, amount, type, description) " +
+                         "VALUES (?, ?, ?, ?, ?, ?)";
+            
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setString(1, transactionId);
+            pstmt.setString(2, transaction.getStudentId());
+            pstmt.setString(3, transaction.getRelatedStudentId()); // 可以为null
+            pstmt.setBigDecimal(4, transaction.getAmount());
+            pstmt.setString(5, transaction.getType().name()); // 将枚举名存为字符串
+            pstmt.setString(6, transaction.getDescription());
+
+            int rowsAffected = pstmt.executeUpdate();
+            
+            if (rowsAffected > 0) {
+                transaction.setTransactionId(transactionId);
+                success = true;
+            }
+        } finally {
+            if (cstmt != null) try { cstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
+            if (pstmt != null) try { pstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
+            // 不关闭连接，由调用者负责
         }
         return success;
     }
@@ -128,14 +186,6 @@ public class TransactionDAO {
                 transaction.setStudentName(rs.getString("student_name"));
                 transaction.setRelatedStudentName(rs.getString("related_student_name")); // 如果没有 related_student_id，则为 null
                 
-                // 设置交易状态，默认为true(成功)，因为数据库中可能没有此字段
-                try {
-                    transaction.setStatus(rs.getBoolean("status"));
-                } catch (SQLException e) {
-                    // 如果列不存在，设置一个默认值为true（成功）
-                    transaction.setStatus(true);
-                }
-                
                 transactions.add(transaction);
             }
         } catch (SQLException e) {
@@ -155,7 +205,7 @@ public class TransactionDAO {
      */
     public List<Transaction> getRecentTransactions(int limit) {
         List<Transaction> transactions = new ArrayList<>();
-        String sql = "SELECT * FROM Transaction ORDER BY transaction_time DESC LIMIT ?";
+        String sql = "SELECT * FROM Transaction ORDER BY transaction_date DESC LIMIT ?";
         
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -173,7 +223,7 @@ public class TransactionDAO {
                     transaction.setAmount(rs.getBigDecimal("amount"));
                     
                     transaction.setDescription(rs.getString("description"));
-                    transaction.setTransactionDate(rs.getTimestamp("transaction_time"));
+                    transaction.setTransactionDate(rs.getTimestamp("transaction_date"));
                     
                     // Transaction可能没有status字段，我们检查它是否存在
                     try {
@@ -254,43 +304,6 @@ public class TransactionDAO {
             pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, studentId);
             pstmt.setTimestamp(2, new Timestamp(date.getTime()));
-            
-            rs = pstmt.executeQuery();
-            if (rs.next()) {
-                count = rs.getInt(1);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            try { if (rs != null) rs.close(); } catch (SQLException e) { e.printStackTrace(); }
-            try { if (pstmt != null) pstmt.close(); } catch (SQLException e) { e.printStackTrace(); }
-            try { if (conn != null) conn.close(); } catch (SQLException e) { e.printStackTrace(); }
-        }
-        return count;
-    }
-
-    /**
-     * 检测用户在指定时间窗口内的转账次数
-     * @param studentId 学生ID
-     * @param minutes 时间窗口（分钟）
-     * @return 时间窗口内的转账次数
-     */
-    public int getTransferCountInTimeWindow(String studentId, int minutes) {
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        int count = 0;
-
-        try {
-            conn = DBConnection.getConnection();
-            // 查询指定时间窗口内的转账次数
-            String sql = "SELECT COUNT(*) FROM Transaction " +
-                        "WHERE student_id = ? AND type = 'TRANSFER' " +
-                        "AND transaction_time >= DATE_SUB(NOW(), INTERVAL ? MINUTE)";
-            
-            pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, studentId);
-            pstmt.setInt(2, minutes);
             
             rs = pstmt.executeQuery();
             if (rs.next()) {

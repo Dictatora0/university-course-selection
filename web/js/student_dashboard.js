@@ -62,7 +62,10 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log("本地存储无用户信息，尝试从API获取...");
         fetch('/course-selection/api/students/getInfo', {
             method: 'GET',
-            credentials: 'include'
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json'
+            }
         })
         .then(response => {
             console.log("API响应状态:", response.status);

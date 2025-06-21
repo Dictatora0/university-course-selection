@@ -2,6 +2,7 @@ package dao;
 
 import model.Administrator;
 import util.DBConnection;
+import util.PasswordUtil;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -22,22 +23,28 @@ public class AdministratorDao {
      * @return 管理员对象，验证失败返回null
      */
     public Administrator login(String adminId, String password) {
-        String sql = "SELECT * FROM Administrator WHERE admin_id = ? AND password = ?";
+        String sql = "SELECT * FROM Administrator WHERE admin_id = ?";
         
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             
             stmt.setString(1, adminId);
-            stmt.setString(2, password);
             
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    Administrator admin = extractAdminFromResultSet(rs);
-                    
-                    // 更新最后登录时间
-                    updateLastLogin(adminId);
-                    
-                    return admin;
+                    String hashedPasswordFromDB = rs.getString("password");
+                    if (PasswordUtil.checkPassword(password, hashedPasswordFromDB)) {
+                        Administrator admin = extractAdminFromResultSet(rs);
+                        
+                        // 更新最后登录时间
+                        updateLastLogin(adminId);
+                        
+                        return admin;
+                    } else {
+                        System.out.println("[AdministratorDao.login] 密码不匹配，管理员ID: " + adminId);
+                    }
+                } else {
+                    System.out.println("[AdministratorDao.login] 未找到管理员，ID: " + adminId);
                 }
             }
             
