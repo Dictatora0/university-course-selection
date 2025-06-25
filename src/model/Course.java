@@ -1,15 +1,24 @@
-package src.model;
+package model;
 
+import java.math.BigDecimal;
+
+/**
+ * 课程实体类
+ */
 public class Course {
     private String courseId;
     private String courseName;
     private String deptId;
-    private double credit;
+    private BigDecimal credit;
+    private String deptName;   // 院系名称
+    private int capacity;      // 课程容量
+    private int enrollmentCount; // 已选人数
+    private String description; // 课程描述
     
     public Course() {
     }
     
-    public Course(String courseId, String courseName, String deptId, double credit) {
+    public Course(String courseId, String courseName, String deptId, BigDecimal credit) {
         this.courseId = courseId;
         this.courseName = courseName;
         this.deptId = deptId;
@@ -41,12 +50,44 @@ public class Course {
         this.deptId = deptId;
     }
     
-    public double getCredit() {
+    public BigDecimal getCredit() {
         return credit;
     }
     
-    public void setCredit(double credit) {
+    public void setCredit(BigDecimal credit) {
         this.credit = credit;
+    }
+    
+    public String getDeptName() {
+        return deptName;
+    }
+    
+    public void setDeptName(String deptName) {
+        this.deptName = deptName;
+    }
+    
+    public int getCapacity() {
+        return capacity;
+    }
+    
+    public void setCapacity(int capacity) {
+        this.capacity = capacity;
+    }
+    
+    public int getEnrollmentCount() {
+        return enrollmentCount;
+    }
+    
+    public void setEnrollmentCount(int enrollmentCount) {
+        this.enrollmentCount = enrollmentCount;
+    }
+    
+    public String getDescription() {
+        return description;
+    }
+    
+    public void setDescription(String description) {
+        this.description = description;
     }
     
     @Override
@@ -56,6 +97,10 @@ public class Course {
                 ", courseName='" + courseName + '\'' +
                 ", deptId='" + deptId + '\'' +
                 ", credit=" + credit +
+                ", deptName='" + deptName + '\'' +
+                ", capacity=" + capacity +
+                ", enrollmentCount=" + enrollmentCount +
+                ", description='" + description + '\'' +
                 '}';
     }
 } 

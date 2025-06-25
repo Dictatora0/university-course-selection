@@ -1,28 +1,34 @@
-package src.model;
+package model;
 
 import java.util.Date;
 
+/**
+ * 消息实体类
+ */
 public class Message {
     private Long messageId;
     private String fromStudentId;
     private String toStudentId;
     private String content;
     private Date sendTime;
-    private Boolean isRead;
+    private boolean isRead;
+    
+    // 用于连接查询的扩展属性
+    private String fromStudentName;
+    private String toStudentName;
     
     public Message() {
-        this.isRead = false;
     }
     
-    public Message(String fromStudentId, String toStudentId, String content) {
+    public Message(Long messageId, String fromStudentId, String toStudentId, String content, Date sendTime, boolean isRead) {
+        this.messageId = messageId;
         this.fromStudentId = fromStudentId;
         this.toStudentId = toStudentId;
         this.content = content;
-        this.sendTime = new Date();
-        this.isRead = false;
+        this.sendTime = sendTime;
+        this.isRead = isRead;
     }
     
-    // Getters and Setters
     public Long getMessageId() {
         return messageId;
     }
@@ -63,12 +69,28 @@ public class Message {
         this.sendTime = sendTime;
     }
     
-    public Boolean getIsRead() {
+    public boolean isRead() {
         return isRead;
     }
     
-    public void setIsRead(Boolean isRead) {
-        this.isRead = isRead;
+    public void setRead(boolean read) {
+        isRead = read;
+    }
+    
+    public String getFromStudentName() {
+        return fromStudentName;
+    }
+    
+    public void setFromStudentName(String fromStudentName) {
+        this.fromStudentName = fromStudentName;
+    }
+    
+    public String getToStudentName() {
+        return toStudentName;
+    }
+    
+    public void setToStudentName(String toStudentName) {
+        this.toStudentName = toStudentName;
     }
     
     @Override
@@ -80,6 +102,8 @@ public class Message {
                 ", content='" + content + '\'' +
                 ", sendTime=" + sendTime +
                 ", isRead=" + isRead +
+                ", fromStudentName='" + fromStudentName + '\'' +
+                ", toStudentName='" + toStudentName + '\'' +
                 '}';
     }
 } 

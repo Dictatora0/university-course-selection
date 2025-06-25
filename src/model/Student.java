@@ -1,18 +1,39 @@
 package model;
 
+import com.google.gson.annotations.SerializedName;
 import java.util.Date;
+import java.sql.Timestamp;
 
 /**
  * 学生实体类
  */
 public class Student {
+    @SerializedName("student_id")
     private String studentId;
     private String name;
+    @SerializedName("birth_date")
     private Date birthDate;
+    @SerializedName("id_card")
     private String idCard;
     private String address;
     private String password;
+    @SerializedName("created_at")
     private Date createdAt;
+    private double balance;
+    @SerializedName("department_id")
+    private String deptId;
+    @SerializedName("dept_name")
+    private String deptName;
+    @SerializedName("status")
+    private String status; // 额外字段，用于标识好友关系状态
+    @SerializedName("account_status")
+    private boolean accountStatus = true; // 账号状态：true=启用，false=禁用，默认启用
+    @SerializedName("recommend_reason")
+    private String recommendReason; // 推荐理由
+    @SerializedName("reject_time")
+    private Timestamp rejectTime; // 拒绝时间
+    private String email; // 电子邮箱
+    private String phone; // 手机号码
     
     public Student() {
     }
@@ -84,6 +105,78 @@ public class Student {
         this.createdAt = createdAt;
     }
     
+    public double getBalance() {
+        return balance;
+    }
+
+    public void setBalance(double balance) {
+        this.balance = balance;
+    }
+    
+    public String getDeptId() {
+        return deptId;
+    }
+    
+    public void setDeptId(String deptId) {
+        this.deptId = deptId;
+    }
+    
+    public String getDeptName() {
+        return deptName;
+    }
+    
+    public void setDeptName(String deptName) {
+        this.deptName = deptName;
+    }
+    
+    public String getStatus() {
+        return status;
+    }
+    
+    public void setStatus(String status) {
+        this.status = status;
+    }
+    
+    public String getRecommendReason() {
+        return recommendReason;
+    }
+    
+    public void setRecommendReason(String recommendReason) {
+        this.recommendReason = recommendReason;
+    }
+    
+    public Timestamp getRejectTime() {
+        return rejectTime;
+    }
+    
+    public void setRejectTime(Timestamp rejectTime) {
+        this.rejectTime = rejectTime;
+    }
+    
+    public String getEmail() {
+        return email;
+    }
+    
+    public void setEmail(String email) {
+        this.email = email;
+    }
+    
+    public String getPhone() {
+        return phone;
+    }
+    
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+    
+    public boolean isAccountStatus() {
+        return accountStatus;
+    }
+    
+    public void setAccountStatus(boolean accountStatus) {
+        this.accountStatus = accountStatus;
+    }
+    
     @Override
     public String toString() {
         return "Student{" +
@@ -92,6 +185,15 @@ public class Student {
                 ", birthDate=" + birthDate +
                 ", idCard='" + idCard + '\'' +
                 ", address='" + address + '\'' +
+                ", deptId='" + deptId + '\'' +
+                ", deptName='" + deptName + '\'' +
+                ", status='" + status + '\'' +
+                ", accountStatus=" + accountStatus +
+                ", balance=" + balance +
+                ", recommendReason='" + recommendReason + '\'' +
+                ", rejectTime=" + rejectTime +
+                ", email='" + email + '\'' +
+                ", phone='" + phone + '\'' +
                 ", createdAt=" + createdAt +
                 '}';
     }

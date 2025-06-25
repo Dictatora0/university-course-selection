@@ -1,73 +1,148 @@
-package src.model;
+package model;
 
-import java.util.Date;
+import java.math.BigDecimal;
+import java.sql.Timestamp;
 
+/**
+ * 交易记录实体类
+ */
 public class Transaction {
-    private Long transactionId;
-    private String fromStudentId;
-    private String toStudentId;
-    private Double amount;
-    private Date transactionTime;
+
+    public enum TransactionType {
+        DEPOSIT,    // 存款
+        WITHDRAW,   // 取款
+        TRANSFER,   // 转账 (包括转出和转入，方向由 relatedStudentId 和 amount 符号决定，或单独字段)
+        PAYMENT,    // 支付 (例如购买课程)
+        REFUND,     // 退款
+        EXPENSE     // 其他支出
+    }
+
+    private String transactionId;     // 将transactionId从Long改为String
+    private String studentId;          // 该交易主要关联的学生ID
+    private TransactionType type;      // 交易类型
+    private BigDecimal amount;         // 交易金额 (对于转出/支付可以为负，或始终为正，由类型决定)
+    private Timestamp transactionDate;    // 交易发生时间 (DAO中设置)
+    private String description;        // 交易描述
+    private String relatedStudentId;   // 关联的另一方学生ID (例如转账目标，或支付对象)
+    private String relatedUserId; // 关联用户ID，用于转账等场景
+    // 状态字段，例如 PENDING, COMPLETED, FAILED, CANCELLED
+    // public enum TransactionStatus { PENDING, COMPLETED, FAILED, CANCELLED }
+    // private TransactionStatus status;
     
+    private boolean status; // 交易状态：true成功，false失败
+
+    // 扩展属性 (用于显示，由DAO填充)
+    private String studentName;        // studentId 对应的姓名
+    private String relatedStudentName; // relatedStudentId 对应的姓名
+
     public Transaction() {
+        this.transactionDate = new Timestamp(System.currentTimeMillis()); // Default to now, DAO can override
     }
-    
-    public Transaction(String fromStudentId, String toStudentId, Double amount) {
-        this.fromStudentId = fromStudentId;
-        this.toStudentId = toStudentId;
-        this.amount = amount;
-        this.transactionTime = new Date();
-    }
-    
-    // Getters and Setters
-    public Long getTransactionId() {
+
+    // --- Getters and Setters ---
+
+    public String getTransactionId() {
         return transactionId;
     }
-    
-    public void setTransactionId(Long transactionId) {
+
+    public void setTransactionId(String transactionId) {
         this.transactionId = transactionId;
     }
-    
-    public String getFromStudentId() {
-        return fromStudentId;
+
+    public String getStudentId() {
+        return studentId;
     }
-    
-    public void setFromStudentId(String fromStudentId) {
-        this.fromStudentId = fromStudentId;
+
+    public void setStudentId(String studentId) {
+        this.studentId = studentId;
     }
-    
-    public String getToStudentId() {
-        return toStudentId;
+
+    public TransactionType getType() {
+        return type;
     }
-    
-    public void setToStudentId(String toStudentId) {
-        this.toStudentId = toStudentId;
+
+    public void setType(TransactionType type) {
+        this.type = type;
     }
-    
-    public Double getAmount() {
+
+    public BigDecimal getAmount() {
         return amount;
     }
-    
-    public void setAmount(Double amount) {
+
+    public void setAmount(BigDecimal amount) {
         this.amount = amount;
     }
-    
-    public Date getTransactionTime() {
-        return transactionTime;
+
+    public Timestamp getTransactionDate() {
+        return transactionDate;
+    }
+
+    public void setTransactionDate(Timestamp transactionDate) {
+        this.transactionDate = transactionDate;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getRelatedStudentId() {
+        return relatedStudentId;
+    }
+
+    public void setRelatedStudentId(String relatedStudentId) {
+        this.relatedStudentId = relatedStudentId;
+    }
+
+    public String getRelatedUserId() {
+        return relatedUserId;
+    }
+
+    public void setRelatedUserId(String relatedUserId) {
+        this.relatedUserId = relatedUserId;
+    }
+
+    public String getStudentName() {
+        return studentName;
+    }
+
+    public void setStudentName(String studentName) {
+        this.studentName = studentName;
+    }
+
+    public String getRelatedStudentName() {
+        return relatedStudentName;
+    }
+
+    public void setRelatedStudentName(String relatedStudentName) {
+        this.relatedStudentName = relatedStudentName;
+    }
+
+    public boolean isStatus() {
+        return status;
     }
     
-    public void setTransactionTime(Date transactionTime) {
-        this.transactionTime = transactionTime;
+    public void setStatus(boolean status) {
+        this.status = status;
     }
-    
+
     @Override
     public String toString() {
         return "Transaction{" +
                 "transactionId=" + transactionId +
-                ", fromStudentId='" + fromStudentId + '\'' +
-                ", toStudentId='" + toStudentId + '\'' +
+                ", studentId='" + studentId + '\'' +
+                ", type=" + type +
                 ", amount=" + amount +
-                ", transactionTime=" + transactionTime +
+                ", transactionDate=" + transactionDate +
+                ", description='" + description + '\'' +
+                ", relatedStudentId='" + relatedStudentId + '\'' +
+                ", relatedUserId='" + relatedUserId + '\'' +
+                // ", status=" + status +
+                ", studentName='" + studentName + '\'' +
+                ", relatedStudentName='" + relatedStudentName + '\'' +
                 '}';
     }
-} 
+}
